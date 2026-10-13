@@ -57,7 +57,7 @@ class ThermalModel:
     def __init__(self, config: ThermalConfig = ThermalConfig()):
         self.config = config
 
-    def estimate_host_power_w(self, host: Host) -> float:
+    def estimate_host_power_w(self, host: Host, use_actual: bool = True) -> float:
         """Estimates instantaneous electrical power consumption of a host.
 
         Equation:
@@ -65,26 +65,31 @@ class ThermalModel:
 
         Args:
             host: The Host instance.
+            use_actual: If True (default), utilizes trace-driven actual CPU utilization
+                ratio (host.actual_cpu_utilization). If False, uses reserved allocation ratio.
 
         Returns:
             Estimated power in Watts.
         """
-        u = host.cpu_utilization
+        u = host.actual_cpu_utilization if use_actual else host.cpu_utilization
+        # Clamp to [0.0, 1.0] to guard against numerical or floating-point anomalies
+        u = min(1.0, max(0.0, float(u)))
         power = host.idle_power_w + (host.max_power_w - host.idle_power_w) * u
         return float(power)
 
-    def estimate_rack_power_w(self, rack: Rack) -> float:
+    def estimate_rack_power_w(self, rack: Rack, use_actual: bool = True) -> float:
         """Estimates aggregate instantaneous power consumption of a rack.
 
         Args:
             rack: The Rack instance.
+            use_actual: Whether to use trace-driven actual CPU utilization (default: True).
 
         Returns:
             Total power consumed by all hosts in the rack in Watts.
         """
-        return sum(self.estimate_host_power_w(h) for h in rack.hosts)
+        return sum(self.estimate_host_power_w(h, use_actual=use_actual) for h in rack.hosts)
 
-    def estimate_inlet_temperature_c(self, host: Host, rack: Rack) -> float:
+    def estimate_inlet_temperature_c(self, host: Host, rack: Rack, use_actual: bool = True) -> float:
         """Estimates inlet air temperature arriving at a host's intake vents.
 
         Accounts for base CRAH supply temperature, rack-level exhaust recirculation,
@@ -93,18 +98,19 @@ class ThermalModel:
         Args:
             host: Target host.
             rack: Containing rack.
+            use_actual: Whether to use trace-driven actual CPU utilization (default: True).
 
         Returns:
             Simulated intake temperature estimate in Celsius (°C).
         """
-        total_rack_power = self.estimate_rack_power_w(rack)
+        total_rack_power = self.estimate_rack_power_w(rack, use_actual=use_actual)
         recirc_heat = self.config.recirculation_alpha * total_rack_power
         height_penalty = self.config.slot_height_beta * host.rack_slot
 
         inlet_temp = self.config.ambient_temperature_c + recirc_heat + height_penalty
         return float(inlet_temp)
 
-    def estimate_target_temperature_c(self, host: Host, rack: Rack) -> float:
+    def estimate_target_temperature_c(self, host: Host, rack: Rack, use_actual: bool = True) -> float:
         """Estimates the asymptotic steady-state operating temperature for a host.
 
         Equation:
@@ -113,16 +119,17 @@ class ThermalModel:
         Args:
             host: Target host.
             rack: Containing rack.
+            use_actual: Whether to use trace-driven actual CPU utilization (default: True).
 
         Returns:
             Steady-state temperature estimate in Celsius (°C).
         """
-        t_inlet = self.estimate_inlet_temperature_c(host, rack)
-        power = self.estimate_host_power_w(host)
+        t_inlet = self.estimate_inlet_temperature_c(host, rack, use_actual=use_actual)
+        power = self.estimate_host_power_w(host, use_actual=use_actual)
         t_target = t_inlet + (self.config.thermal_resistance_c_per_w * power)
         return float(t_target)
 
-    def step_host_temperature(self, host: Host, rack: Rack, dt: float = 1.0) -> float:
+    def step_host_temperature(self, host: Host, rack: Rack, dt: float = 1.0, use_actual: bool = True) -> float:
         """Updates a host's simulated temperature estimate over time step dt with thermal inertia.
 
         Equation:
@@ -132,11 +139,12 @@ class ThermalModel:
             host: Target host to update.
             rack: Containing rack.
             dt: Discrete time delta (default: 1.0).
+            use_actual: Whether to use trace-driven actual CPU utilization (default: True).
 
         Returns:
             Updated simulated temperature estimate in Celsius (°C).
         """
-        t_target = self.estimate_target_temperature_c(host, rack)
+        t_target = self.estimate_target_temperature_c(host, rack, use_actual=use_actual)
         t_curr = host.simulated_temperature_c
 
         # Discretized first-order RC thermal convergence
@@ -148,12 +156,13 @@ class ThermalModel:
         host.simulated_temperature_c = float(new_temp)
         return host.simulated_temperature_c
 
-    def update_datacenter(self, datacenter: DataCenter, dt: float = 1.0) -> Dict[str, float]:
+    def update_datacenter(self, datacenter: DataCenter, dt: float = 1.0, use_actual: bool = True) -> Dict[str, float]:
         """Steps forward simulated temperatures for all hosts across all racks.
 
         Args:
             datacenter: The data center instance.
             dt: Time step duration.
+            use_actual: Whether to use trace-driven actual CPU utilization (default: True).
 
         Returns:
             Mapping of host_id to updated simulated temperature estimates (°C).
@@ -161,7 +170,7 @@ class ThermalModel:
         updated_temps: Dict[str, float] = {}
         for rack in datacenter.racks:
             for host in rack.hosts:
-                temp = self.step_host_temperature(host, rack, dt=dt)
+                temp = self.step_host_temperature(host, rack, dt=dt, use_actual=use_actual)
                 updated_temps[host.host_id] = temp
         return updated_temps
 

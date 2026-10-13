@@ -99,6 +99,48 @@ class TestDataCenter(unittest.TestCase):
             self.assertEqual(len(h.allocated_vms), 0)
             self.assertEqual(h.simulated_temperature_c, 22.0)
 
+    def test_host_actual_used_cpu_with_planetlab_traces(self):
+        """Host computes actual_used_cpu dynamically from VM traces while enforcing reserved capacity."""
+        # VM 1: Reserved 8 cores, currently utilizing 50% = 4.0 cores
+        vm1 = VM(
+            vm_id="vm_planetlab_alpha",
+            cpu_demand=8,
+            ram_demand=16,
+            arrival_time=0,
+            cpu_trace=[50.0, 75.0],
+        )
+        # VM 2: Reserved 4 cores, currently utilizing 25% = 1.0 core
+        vm2 = VM(
+            vm_id="vm_planetlab_beta",
+            cpu_demand=4,
+            ram_demand=8,
+            arrival_time=0,
+            cpu_trace=[25.0, 50.0],
+        )
+
+        self.assertTrue(self.host.allocate(vm1))
+        self.assertTrue(self.host.allocate(vm2))
+
+        # Reserved capacity allocated: 8 + 4 = 12 cores
+        self.assertEqual(self.host.used_cpu, 12)
+        # Dynamic actual CPU utilized: (8 * 0.50) + (4 * 0.25) = 4.0 + 1.0 = 5.0 cores
+        self.assertAlmostEqual(self.host.actual_used_cpu, 5.0)
+        self.assertAlmostEqual(self.host.actual_cpu_utilization, 5.0 / 16.0)
+
+        # Advance one step
+        vm1.tick()
+        vm2.tick()
+        # Reserved capacity remains 12 cores
+        self.assertEqual(self.host.used_cpu, 12)
+        # Dynamic actual CPU utilized: (8 * 0.75) + (4 * 0.50) = 6.0 + 2.0 = 8.0 cores
+        self.assertAlmostEqual(self.host.actual_used_cpu, 8.0)
+
+        # Release string-identified VM
+        released = self.host.release("vm_planetlab_alpha")
+        self.assertEqual(released, vm1)
+        self.assertEqual(self.host.used_cpu, 4)
+        self.assertAlmostEqual(self.host.actual_used_cpu, 2.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -106,6 +106,94 @@ class TestThermalModel(unittest.TestCase):
         host.simulated_temperature_c = 82.5
         self.assertTrue(self.model.is_hotspot(host))
 
+    def test_trace_driven_power_and_temperature_scaling(self):
+        """Dynamic trace samples drive proportional changes in host utilization, power, and target temp."""
+        host = Host(
+            host_id="H_dynamic",
+            rack_id=0,
+            rack_slot=0,
+            total_cpu=16,
+            total_ram=64,
+            idle_power_w=150.0,
+            max_power_w=350.0,
+            initial_temperature_c=25.0,
+        )
+        rack = Rack(rack_id=0, hosts=[host])
+
+        # VM with 16 reserved cores, dynamic trace: 10% utilization then 90% utilization
+        vm = VM(
+            vm_id="vm_burst",
+            cpu_demand=16,
+            ram_demand=32,
+            arrival_time=0,
+            cpu_trace=[10.0, 90.0],
+        )
+        host.allocate(vm)
+
+        # Timestep 0: Trace sample is 10%
+        self.assertAlmostEqual(host.actual_used_cpu, 1.6)
+        self.assertAlmostEqual(host.actual_cpu_utilization, 0.10)
+        power_low = self.model.estimate_host_power_w(host)
+        # 150 + 200 * 0.10 = 170 W
+        self.assertAlmostEqual(power_low, 170.0)
+        target_low = self.model.estimate_target_temperature_c(host, rack)
+
+        # Step host temperature at low power
+        t_after_low = self.model.step_host_temperature(host, rack, dt=1.0)
+        self.assertGreater(t_after_low, 25.0)
+
+        # Advance trace to Timestep 1: Trace sample is 90%
+        vm.tick()
+        self.assertAlmostEqual(host.actual_used_cpu, 14.4)
+        self.assertAlmostEqual(host.actual_cpu_utilization, 0.90)
+        power_high = self.model.estimate_host_power_w(host)
+        # 150 + 200 * 0.90 = 330 W
+        self.assertAlmostEqual(power_high, 330.0)
+        target_high = self.model.estimate_target_temperature_c(host, rack)
+
+        # High utilization must yield substantially higher power and target temp
+        self.assertGreater(power_high, power_low)
+        self.assertGreater(target_high, target_low)
+
+        # Step temperature at high power: temperature rises toward target_high
+        t_after_high = self.model.step_host_temperature(host, rack, dt=1.0)
+        self.assertGreater(t_after_high, t_after_low)
+
+    def test_multiple_vms_utilization_combination_and_capacity_capping(self):
+        """Host aggregates multiple active VMs' actual CPU usage and prevents overflow beyond capacity."""
+        host = Host(
+            host_id="H_multi",
+            rack_id=0,
+            rack_slot=0,
+            total_cpu=16,
+            total_ram=64,
+            idle_power_w=150.0,
+            max_power_w=350.0,
+        )
+        # VM 1: 8 cores, 50% utilization -> 4 cores
+        vm1 = VM(vm_id=1, cpu_demand=8, ram_demand=16, arrival_time=0, cpu_trace=[50.0])
+        # VM 2: 8 cores, 75% utilization -> 6 cores
+        vm2 = VM(vm_id=2, cpu_demand=8, ram_demand=16, arrival_time=0, cpu_trace=[75.0])
+
+        host.allocate(vm1)
+        host.allocate(vm2)
+
+        # Total reserved = 16 cores (100% capacity)
+        self.assertEqual(host.used_cpu, 16)
+        self.assertAlmostEqual(host.cpu_utilization, 1.0)
+
+        # Aggregate actual = 4 + 6 = 10 cores
+        self.assertAlmostEqual(host.actual_used_cpu, 10.0)
+        # Actual ratio = 10 / 16 = 0.625
+        self.assertAlmostEqual(host.actual_cpu_utilization, 0.625)
+
+        # Power = 150 + 200 * 0.625 = 275 W
+        power = self.model.estimate_host_power_w(host)
+        self.assertAlmostEqual(power, 275.0)
+
+        # Ensure safety clamp: actual_cpu_utilization is guaranteed <= 1.0
+        self.assertLessEqual(host.actual_cpu_utilization, 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

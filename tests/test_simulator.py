@@ -2,7 +2,7 @@
 
 import unittest
 from src.datacenter import DataCenter
-from src.workload import WorkloadGenerator
+from src.workload import VM, WorkloadGenerator
 from src.thermal import ThermalModel, ThermalConfig
 from src.placement.first_fit import FirstFitPlacement
 from src.simulator import Simulator
@@ -73,6 +73,92 @@ class TestSimulator(unittest.TestCase):
         for host in dc.hosts:
             self.assertLessEqual(host.used_cpu, host.total_cpu)
             self.assertLessEqual(host.used_ram, host.total_ram)
+
+    def test_simulation_with_planetlab_trace_workload(self):
+        """Simulator drives active VMs through trace samples and updates thermal state dynamically."""
+        dc = DataCenter.create_standard_datacenter(
+            num_racks=1,
+            hosts_per_rack=2,
+            cpu_per_host=16,
+            ram_per_host=32,
+            initial_temperature_c=25.0,
+        )
+        sim = Simulator(datacenter=dc)
+
+        # VM 1: Arrives at t=0, 4 cores, trace=[10%, 80%, 20%]
+        vm1 = VM(
+            vm_id="vm_pl_1",
+            cpu_demand=4,
+            ram_demand=8,
+            arrival_time=0,
+            cpu_trace=[10.0, 80.0, 20.0],
+        )
+        # VM 2: Arrives at t=1, 8 cores, trace=[50%, 50%]
+        vm2 = VM(
+            vm_id="vm_pl_2",
+            cpu_demand=8,
+            ram_demand=16,
+            arrival_time=1,
+            cpu_trace=[50.0, 50.0],
+        )
+
+        schedule = {0: [vm1], 1: [vm2]}
+        metrics = sim.run(workload_schedule=schedule, strategy=FirstFitPlacement(), total_steps=3)
+
+        self.assertEqual(len(metrics.snapshots), 3)
+
+        # Step 0: Only vm1 is placed, sample 0 (10% of 4 = 0.4 cores)
+        snap0 = metrics.snapshots[0]
+        self.assertEqual(snap0.active_vm_count, 1)
+        host0 = dc.hosts[0]
+        self.assertIn("vm_pl_1", host0.allocated_vms)
+
+        # Step 1: vm1 ticked to sample 1 (80% of 4 = 3.2 cores), vm2 arrived with sample 0 (50% of 8 = 4.0 cores)
+        # Both on host0: actual used = 3.2 + 4.0 = 7.2 cores out of 16
+        snap1 = metrics.snapshots[1]
+        self.assertEqual(snap1.active_vm_count, 2)
+        self.assertGreater(snap1.total_power_w, snap0.total_power_w)
+
+        # Step 2: vm1 ticked to sample 2 (20% of 4 = 0.8 cores), vm2 ticked to sample 1 (50% of 8 = 4.0 cores)
+        # Power decreases as vm1 usage drops from 80% to 20%
+        snap2 = metrics.snapshots[2]
+        self.assertEqual(snap2.active_vm_count, 2)
+        self.assertLess(snap2.total_power_w, snap1.total_power_w)
+
+    def test_trace_completion_departure_reclaims_capacity(self):
+        """When a VM finishes its trace, simulator departures reclaim host capacity."""
+        dc = DataCenter.create_standard_datacenter(
+            num_racks=1,
+            hosts_per_rack=1,
+            cpu_per_host=8,
+            ram_per_host=16,
+        )
+        sim = Simulator(datacenter=dc)
+
+        # VM with only 2 samples [50%, 50%], arrives at t=0
+        short_vm = VM(
+            vm_id="short_vm",
+            cpu_demand=8,
+            ram_demand=16,
+            arrival_time=0,
+            cpu_trace=[50.0, 50.0],
+        )
+        # Large VM arriving at t=2 requiring full host capacity
+        large_vm = VM(
+            vm_id="large_vm",
+            cpu_demand=8,
+            ram_demand=16,
+            arrival_time=2,
+            cpu_trace=[30.0],
+        )
+
+        schedule = {0: [short_vm], 2: [large_vm]}
+        metrics = sim.run(workload_schedule=schedule, strategy=FirstFitPlacement(), total_steps=3)
+
+        # At t=2, short_vm should have completed and departed, allowing large_vm to be placed!
+        self.assertEqual(metrics.total_arrived_vms, 2)
+        self.assertEqual(metrics.total_placed_vms, 2)
+        self.assertEqual(metrics.total_rejected_vms, 0)
 
 
 if __name__ == "__main__":

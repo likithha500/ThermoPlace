@@ -35,6 +35,7 @@ class StepSnapshot:
     hotspot_count: int
     total_power_w: float
     host_temperatures: Dict[str, float] = field(default_factory=dict)
+    mean_actual_cpu_utilization: float = 0.0
 
 
 class MetricsCollector:
@@ -75,6 +76,7 @@ class MetricsCollector:
         hosts = datacenter.hosts
         temps = np.array([h.simulated_temperature_c for h in hosts], dtype=float)
         cpu_utils = np.array([h.cpu_utilization for h in hosts], dtype=float)
+        actual_cpu_utils = np.array([h.actual_cpu_utilization for h in hosts], dtype=float)
         ram_utils = np.array([h.ram_utilization for h in hosts], dtype=float)
 
         total_active_vms = sum(len(h.allocated_vms) for h in hosts)
@@ -106,6 +108,7 @@ class MetricsCollector:
             hotspot_count=hotspots,
             total_power_w=float(total_power),
             host_temperatures=temp_dict,
+            mean_actual_cpu_utilization=float(np.mean(actual_cpu_utils)),
         )
 
         self.snapshots.append(snapshot)
@@ -122,6 +125,7 @@ class MetricsCollector:
                 "vms_rejected": s.num_vms_rejected,
                 "active_vms": s.active_vm_count,
                 "mean_cpu_util": s.mean_cpu_utilization,
+                "mean_actual_cpu_util": s.mean_actual_cpu_utilization,
                 "mean_ram_util": s.mean_ram_utilization,
                 "max_temp_c": s.max_temperature_c,
                 "min_temp_c": s.min_temperature_c,
@@ -158,6 +162,7 @@ class MetricsCollector:
             "cumulative_hotspot_events": int(df["hotspot_count"].sum()),
             "steps_with_hotspots": int((df["hotspot_count"] > 0).sum()),
             "average_cpu_utilization": float(df["mean_cpu_util"].mean()),
+            "average_actual_cpu_utilization": float(df["mean_actual_cpu_util"].mean()),
             "average_ram_utilization": float(df["mean_ram_util"].mean()),
             "average_total_power_w": float(df["total_power_w"].mean()),
         }

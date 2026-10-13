@@ -6,7 +6,7 @@ and provides complete state reset functionality to ensure identical initial
 conditions across different scheduling algorithms.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 from src.workload import VM
 
 
@@ -51,7 +51,7 @@ class Host:
         self.used_cpu: int = 0
         self.used_ram: int = 0
         self.simulated_temperature_c: float = initial_temperature_c
-        self.allocated_vms: Dict[int, VM] = {}
+        self.allocated_vms: Dict[Union[int, str], VM] = {}
 
     def can_accommodate(self, vm: VM) -> bool:
         """Checks whether the host has sufficient available CPU and RAM.
@@ -83,7 +83,7 @@ class Host:
         self.used_ram += vm.ram_demand
         return True
 
-    def release(self, vm_id: int) -> Optional[VM]:
+    def release(self, vm_id: Union[int, str]) -> Optional[VM]:
         """Releases and removes a completed VM from this host.
 
         Args:
@@ -101,10 +101,22 @@ class Host:
 
     @property
     def cpu_utilization(self) -> float:
-        """Returns the current CPU utilization ratio in the range [0.0, 1.0]."""
+        """Returns the current CPU allocation ratio in the range [0.0, 1.0]."""
         if self.total_cpu <= 0:
             return 0.0
         return min(1.0, max(0.0, self.used_cpu / self.total_cpu))
+
+    @property
+    def actual_used_cpu(self) -> float:
+        """Returns the sum of actual CPU cores utilized across active VMs based on real traces."""
+        return sum(vm.current_actual_cpu for vm in self.allocated_vms.values())
+
+    @property
+    def actual_cpu_utilization(self) -> float:
+        """Returns the actual CPU utilization ratio based on trace samples in the range [0.0, 1.0]."""
+        if self.total_cpu <= 0:
+            return 0.0
+        return min(1.0, max(0.0, self.actual_used_cpu / self.total_cpu))
 
     @property
     def ram_utilization(self) -> float:
