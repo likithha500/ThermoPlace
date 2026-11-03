@@ -36,7 +36,8 @@ ThermoPlace/
 │   │   └── first_fit.py           # Traditional First Fit placement algorithm
 │   ├── qlearning/
 │   │   ├── __init__.py
-│   │   └── agent.py               # Tabular Q-Learning agent (Phase 1)
+│   │   ├── agent.py               # Tabular Q-Learning agent (Phase 1)
+│   │   └── reward.py              # Thermal-aware reward function calculator (Phase 2)
 │   ├── metrics.py                 # Telemetry & metric collection (hotspots, imbalance, logs)
 │   └── simulator.py               # Discrete-time simulation engine and execution loop
 └── tests/
@@ -49,7 +50,8 @@ ThermoPlace/
     ├── test_metrics.py            # Unit tests for metric calculation accuracy
     ├── test_simulator.py          # End-to-end integration tests for simulation runs
     ├── test_main.py               # Unit tests for CLI parsing and dataset validation
-    └── test_qlearning.py          # Unit tests for Tabular Q-Learning agent
+    ├── test_qlearning.py          # Unit tests for Tabular Q-Learning agent
+    └── test_reward.py             # Unit tests for thermal reward function and decomposition
 ```
 
 ---
@@ -147,8 +149,7 @@ python -m unittest discover -s tests -v
 - [ ] **Workload Dataset Integration (Pending)**:
   - PlanetLab dataset and dependencies removed.
   - Integration of replacement workload dataset (e.g., Bitbrains GWA-T-12) to be implemented in a subsequent task.
-- [ ] **Milestone 2 (Future)**:
-  - Tabular Q-Learning placement agent with state discretization (thermal & utilization bins).
-  - Reward function penalizing hotspot creation and thermal variance.
-  - Comparative benchmark: First Fit vs. Q-Learning under identical workload traces.
-  - Comparative plotting and report generation.
+- [x] **Milestone 2 (Reinforcement Learning Scheduler)**:
+  - [x] **Phase 1**: Tabular Q-Learning placement agent with sparse dictionary Q-table, capacity filtering, epsilon-greedy action selection, and geometric decay ([`src/qlearning/agent.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/qlearning/agent.py)).
+  - [x] **Phase 2**: State representation discretization (VM demands, host utilization, 4-tier host temperature, 3-tier datacenter thermal condition) and modular thermal reward function calculator ([`src/qlearning/reward.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/qlearning/reward.py)) penalizing temperature elevation, hotspot creation, and thermal variance.
+  - [ ] **Phase 3 (Future)**: Simulator training loop, comparative benchmark (First Fit vs. Q-Learning under identical workload traces), and comparative plotting.

@@ -62,12 +62,14 @@ class TestQLearningAgent(unittest.TestCase):
         self.assertEqual(s_med_ram[3], "MEDIUM")
         self.assertEqual(s_high_ram[3], "HIGH")
 
-        # Test Host temperature: cool (<55°C), normal (55-70°C), hot (>=70°C)
+        # Test Host temperature: cool (<55°C), normal (55-65°C), warm (65-75°C), hot (>=75°C)
         s_cool_t = self.agent.discretize_state(vm_cpu=2, vm_ram=4, host_cpu=0.1, host_ram=0.1, host_temp=45.0)
-        s_norm_t = self.agent.discretize_state(vm_cpu=2, vm_ram=4, host_cpu=0.1, host_ram=0.1, host_temp=62.0)
-        s_hot_t = self.agent.discretize_state(vm_cpu=2, vm_ram=4, host_cpu=0.1, host_ram=0.1, host_temp=72.0)
+        s_norm_t = self.agent.discretize_state(vm_cpu=2, vm_ram=4, host_cpu=0.1, host_ram=0.1, host_temp=60.0)
+        s_warm_t = self.agent.discretize_state(vm_cpu=2, vm_ram=4, host_cpu=0.1, host_ram=0.1, host_temp=70.0)
+        s_hot_t = self.agent.discretize_state(vm_cpu=2, vm_ram=4, host_cpu=0.1, host_ram=0.1, host_temp=76.0)
         self.assertEqual(s_cool_t[4], "COOL")
         self.assertEqual(s_norm_t[4], "NORMAL")
+        self.assertEqual(s_warm_t[4], "WARM")
         self.assertEqual(s_hot_t[4], "HOT")
 
     def test_state_discretization_with_entities(self):
@@ -86,7 +88,7 @@ class TestQLearningAgent(unittest.TestCase):
         self.assertEqual(state[2], "MEDIUM")  # 4/8 = 50%
         self.assertEqual(state[3], "MEDIUM")  # 8/16 = 50%
         self.assertEqual(state[4], "NORMAL")  # 60.0°C
-        self.assertIn(state[5], ["COOL", "NORMAL", "WARM", "CRITICAL"])
+        self.assertIn(state[5], ["COOL", "MODERATE", "CRITICAL"])
 
     def test_datacenter_thermal_condition_hotspot_detection(self):
         """Discretization identifies overall datacenter thermal criticality when a host reaches hotspot."""

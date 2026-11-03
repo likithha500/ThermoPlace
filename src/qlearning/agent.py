@@ -39,22 +39,22 @@ class StateDiscretizerConfig:
             <= 2 -> 'SMALL', <= 4 -> 'MEDIUM', > 4 -> 'LARGE'.
         vm_ram_thresholds: Thresholds partitioning VM RAM demand in GB (default: (4.0, 16.0)).
             <= 4 -> 'SMALL', <= 16 -> 'MEDIUM', > 16 -> 'LARGE'.
-        host_cpu_thresholds: Thresholds partitioning host CPU utilization ratio in [0, 1] (default: (0.35, 0.70)).
-            < 0.35 -> 'LOW', < 0.70 -> 'MEDIUM', >= 0.70 -> 'HIGH'.
-        host_ram_thresholds: Thresholds partitioning host RAM utilization ratio in [0, 1] (default: (0.35, 0.70)).
-            < 0.35 -> 'LOW', < 0.70 -> 'MEDIUM', >= 0.70 -> 'HIGH'.
-        host_temp_thresholds: Thresholds partitioning host temperature in °C (default: (55.0, 70.0)).
-            < 55.0 -> 'COOL', < 70.0 -> 'NORMAL', >= 70.0 -> 'HOT'.
+        host_cpu_thresholds: Thresholds partitioning host CPU utilization ratio in [0, 1] (default: (0.40, 0.70)).
+            < 0.40 -> 'LOW', < 0.70 -> 'MEDIUM', >= 0.70 -> 'HIGH'.
+        host_ram_thresholds: Thresholds partitioning host RAM utilization ratio in [0, 1] (default: (0.40, 0.70)).
+            < 0.40 -> 'LOW', < 0.70 -> 'MEDIUM', >= 0.70 -> 'HIGH'.
+        host_temp_thresholds: Thresholds partitioning host temperature in °C (default: (55.0, 65.0, 75.0)).
+            < 55.0 -> 'COOL', < 65.0 -> 'NORMAL', < 75.0 -> 'WARM', >= 75.0 -> 'HOT'.
         hotspot_threshold_c: Temperature threshold defining critical hotspots in °C (default: 75.0).
-        dc_warm_threshold_c: Average datacenter temperature threshold for warm state (default: 55.0).
+        warm_threshold_c: Temperature threshold defining warm state in °C (default: 65.0).
     """
     vm_cpu_thresholds: Tuple[float, float] = (2.0, 4.0)
     vm_ram_thresholds: Tuple[float, float] = (4.0, 16.0)
-    host_cpu_thresholds: Tuple[float, float] = (0.35, 0.70)
-    host_ram_thresholds: Tuple[float, float] = (0.35, 0.70)
-    host_temp_thresholds: Tuple[float, float] = (55.0, 70.0)
+    host_cpu_thresholds: Tuple[float, float] = (0.40, 0.70)
+    host_ram_thresholds: Tuple[float, float] = (0.40, 0.70)
+    host_temp_thresholds: Tuple[float, float, float] = (55.0, 65.0, 75.0)
     hotspot_threshold_c: float = 75.0
-    dc_warm_threshold_c: float = 55.0
+    warm_threshold_c: float = 65.0
 
 
 class QTable(dict):
@@ -225,7 +225,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         else:
             bin_host_ram = "HIGH"
 
-        # 5. Extract Candidate Host Temperature
+        # 5. Extract Candidate Host Temperature (4 bins: COOL, NORMAL, WARM, HOT)
         if host_temp is None:
             if isinstance(host, Host):
                 host_temp = float(host.simulated_temperature_c)
@@ -238,27 +238,26 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             bin_host_temp = "COOL"
         elif host_temp < cfg.host_temp_thresholds[1]:
             bin_host_temp = "NORMAL"
+        elif host_temp < cfg.host_temp_thresholds[2]:
+            bin_host_temp = "WARM"
         else:
             bin_host_temp = "HOT"
 
-        # 6. Extract Overall Datacenter Thermal Condition (if available)
+        # 6. Extract Overall Datacenter Thermal Condition (3 bins: COOL, MODERATE, CRITICAL)
         if dc_thermal is not None:
             bin_dc_thermal = str(dc_thermal)
         elif datacenter is not None and datacenter.hosts:
             host_temps = [h.simulated_temperature_c for h in datacenter.hosts]
             max_t = max(host_temps) if host_temps else 25.0
-            avg_t = sum(host_temps) / len(host_temps) if host_temps else 25.0
 
             if max_t >= cfg.hotspot_threshold_c:
                 bin_dc_thermal = "CRITICAL"
-            elif avg_t >= cfg.dc_warm_threshold_c or max_t >= cfg.host_temp_thresholds[1]:
-                bin_dc_thermal = "WARM"
-            elif avg_t < cfg.host_temp_thresholds[0]:
-                bin_dc_thermal = "COOL"
+            elif max_t >= cfg.warm_threshold_c:
+                bin_dc_thermal = "MODERATE"
             else:
-                bin_dc_thermal = "NORMAL"
+                bin_dc_thermal = "COOL"
         else:
-            bin_dc_thermal = "NORMAL"
+            bin_dc_thermal = "COOL"
 
         return (bin_vm_cpu, bin_vm_ram, bin_host_cpu, bin_host_ram, bin_host_temp, bin_dc_thermal)
 
