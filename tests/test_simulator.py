@@ -74,7 +74,7 @@ class TestSimulator(unittest.TestCase):
             self.assertLessEqual(host.used_cpu, host.total_cpu)
             self.assertLessEqual(host.used_ram, host.total_ram)
 
-    def test_simulation_with_planetlab_trace_workload(self):
+    def test_simulation_with_trace_workload(self):
         """Simulator drives active VMs through trace samples and updates thermal state dynamically."""
         dc = DataCenter.create_standard_datacenter(
             num_racks=1,
@@ -87,7 +87,7 @@ class TestSimulator(unittest.TestCase):
 
         # VM 1: Arrives at t=0, 4 cores, trace=[10%, 80%, 20%]
         vm1 = VM(
-            vm_id="vm_pl_1",
+            vm_id="vm_trace_1",
             cpu_demand=4,
             ram_demand=8,
             arrival_time=0,
@@ -95,7 +95,7 @@ class TestSimulator(unittest.TestCase):
         )
         # VM 2: Arrives at t=1, 8 cores, trace=[50%, 50%]
         vm2 = VM(
-            vm_id="vm_pl_2",
+            vm_id="vm_trace_2",
             cpu_demand=8,
             ram_demand=16,
             arrival_time=1,
@@ -111,7 +111,7 @@ class TestSimulator(unittest.TestCase):
         snap0 = metrics.snapshots[0]
         self.assertEqual(snap0.active_vm_count, 1)
         host0 = dc.hosts[0]
-        self.assertIn("vm_pl_1", host0.allocated_vms)
+        self.assertIn("vm_trace_1", host0.allocated_vms)
 
         # Step 1: vm1 ticked to sample 1 (80% of 4 = 3.2 cores), vm2 arrived with sample 0 (50% of 8 = 4.0 cores)
         # Both on host0: actual used = 3.2 + 4.0 = 7.2 cores out of 16

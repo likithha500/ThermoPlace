@@ -1,7 +1,7 @@
-"""Unit tests for workload generation, VM lifecycle, and PlanetLab trace integration."""
+"""Unit tests for workload generation, VM lifecycle, and trace integration."""
 
 import unittest
-from src.workload import VM, WorkloadGenerator, PlanetLabWorkloadGenerator
+from src.workload import VM, WorkloadGenerator, TraceWorkloadGenerator
 from src.dataset_loader import VMTrace
 
 
@@ -69,7 +69,7 @@ class TestWorkload(unittest.TestCase):
                 self.assertEqual(vm.arrival_time, t)
 
     # -------------------------------------------------------------------------
-    # 2. PlanetLab Trace Integration Tests: Sample Progression
+    # 2. Trace Integration Tests: Sample Progression
     # -------------------------------------------------------------------------
 
     def test_vm_with_trace_sample_progression(self):
@@ -193,7 +193,7 @@ class TestWorkload(unittest.TestCase):
     def test_vm_from_trace_factory_with_vmtrace_object(self):
         """Instantiates VM directly from VMTrace instance preserving metadata."""
         trace = VMTrace(
-            vm_id="host_146-179_slice",
+            vm_id="trace_vm_host_slice",
             cpu_samples=[10.0, 20.0, 30.0],
             source_file="/fake/data/trace",
         )
@@ -205,8 +205,8 @@ class TestWorkload(unittest.TestCase):
             arrival_time=5,
         )
 
-        self.assertEqual(vm.vm_id, "host_146-179_slice")
-        self.assertEqual(vm.trace_id, "host_146-179_slice")
+        self.assertEqual(vm.vm_id, "trace_vm_host_slice")
+        self.assertEqual(vm.trace_id, "trace_vm_host_slice")
         self.assertEqual(vm.cpu_demand, 4)
         self.assertEqual(vm.ram_demand, 8)
         self.assertEqual(vm.arrival_time, 5)
@@ -254,17 +254,17 @@ class TestWorkload(unittest.TestCase):
         self.assertFalse(vm.is_finished())
 
     # -------------------------------------------------------------------------
-    # 8. PlanetLabWorkloadGenerator Tests
+    # 8. TraceWorkloadGenerator Tests
     # -------------------------------------------------------------------------
 
-    def test_planetlab_workload_generator_schedule(self):
-        """Generates reproducible simulation schedule from real PlanetLab traces."""
+    def test_trace_workload_generator_schedule(self):
+        """Generates reproducible simulation schedule from real traces."""
         traces = [
             VMTrace(vm_id=f"trace_{i}", cpu_samples=[10.0 + i] * 5, source_file="f")
             for i in range(10)
         ]
 
-        gen = PlanetLabWorkloadGenerator(
+        gen = TraceWorkloadGenerator(
             traces=traces,
             cpu_options=[2, 4],
             ram_options=[4, 8],
