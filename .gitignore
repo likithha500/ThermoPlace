@@ -9,3 +9,5 @@ venv/
 # Test and coverage cache
 .pytest_cache/
 .coverage
+
+# Bitbrains dataset
