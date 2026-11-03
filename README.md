@@ -36,7 +36,7 @@ ThermoPlace/
 │   │   └── first_fit.py           # Traditional First Fit placement algorithm
 │   ├── qlearning/
 │   │   ├── __init__.py
-│   │   └── agent.py               # Tabular Q-Learning agent scaffold (Milestone 2)
+│   │   └── agent.py               # Tabular Q-Learning agent (Phase 1)
 │   ├── metrics.py                 # Telemetry & metric collection (hotspots, imbalance, logs)
 │   └── simulator.py               # Discrete-time simulation engine and execution loop
 └── tests/
@@ -48,7 +48,8 @@ ThermoPlace/
     ├── test_first_fit.py          # Unit tests for First Fit placement decisions
     ├── test_metrics.py            # Unit tests for metric calculation accuracy
     ├── test_simulator.py          # End-to-end integration tests for simulation runs
-    └── test_main.py               # Unit tests for CLI parsing and dataset validation
+    ├── test_main.py               # Unit tests for CLI parsing and dataset validation
+    └── test_qlearning.py          # Unit tests for Tabular Q-Learning agent
 ```
 
 ---
