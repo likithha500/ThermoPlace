@@ -1,4 +1,4 @@
-"""Unit tests for main CLI configuration and PlanetLab-driven execution."""
+"""Unit tests for main CLI configuration and dataset execution checks."""
 
 from pathlib import Path
 import tempfile
@@ -11,7 +11,7 @@ class TestMain(unittest.TestCase):
     def test_parse_args_defaults(self):
         """parse_args provides expected default values."""
         args = parse_args([])
-        self.assertEqual(args.dataset_dir, "data/raw/planetlab")
+        self.assertIsNone(args.dataset_dir)
         self.assertEqual(args.max_vms, 50)
         self.assertEqual(args.steps, 100)
         self.assertEqual(args.racks, 2)
@@ -48,36 +48,24 @@ class TestMain(unittest.TestCase):
         self.assertEqual(args.hotspot_threshold, 80.0)
         self.assertEqual(args.seed, 99)
 
+    def test_main_no_dataset_configured_exits(self):
+        """main exits cleanly with code 1 if no dataset is configured."""
+        with self.assertRaises(SystemExit) as ctx:
+            main([])
+        self.assertEqual(ctx.exception.code, 1)
+
     def test_main_missing_dataset_directory_exits(self):
         """main exits cleanly with code 1 if dataset directory does not exist."""
         with self.assertRaises(SystemExit) as ctx:
             main(["--dataset-dir", "non_existent_dir_98765"])
         self.assertEqual(ctx.exception.code, 1)
 
-    def test_main_empty_dataset_directory_exits(self):
-        """main exits cleanly with code 1 if dataset directory contains no valid traces."""
+    def test_main_dataset_loader_pending_exits(self):
+        """main exits cleanly with code 1 if dataset loader is not configured for directory."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             with self.assertRaises(SystemExit) as ctx:
                 main(["--dataset-dir", tmp_dir])
             self.assertEqual(ctx.exception.code, 1)
-
-    def test_main_execution_with_real_planetlab_traces(self):
-        """main executes successfully and produces valid summary metrics."""
-        summary = main([
-            "--dataset-dir", "data/raw/planetlab",
-            "--max-vms", "10",
-            "--steps", "15",
-            "--racks", "1",
-            "--hosts-per-rack", "2",
-        ])
-
-        self.assertIsInstance(summary, dict)
-        self.assertEqual(summary["algorithm"], "First-Fit")
-        self.assertEqual(summary["total_steps"], 15)
-        self.assertGreater(summary["total_arrived_vms"], 0)
-        self.assertGreaterEqual(summary["total_placed_vms"], 0)
-        self.assertIn("peak_temperature_c", summary)
-        self.assertIn("average_actual_cpu_utilization", summary)
 
 
 if __name__ == "__main__":

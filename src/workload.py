@@ -2,20 +2,20 @@
 
 Provides:
 1. Virtual Machine (VM) model supporting both synthetic workloads and real
-   PlanetLab CPU utilization traces.
+   CPU utilization traces.
 2. Deterministic, reproducible synthetic VM arrival generation (WorkloadGenerator).
-3. PlanetLab workload generation mapping real trace files to simulation VMs (PlanetLabWorkloadGenerator).
+3. Trace workload generation mapping real trace files to simulation VMs (TraceWorkloadGenerator).
 
 Scientific & Modeling Assumptions:
 - CPU Capacity vs Utilization:
   `cpu_demand` represents the reserved/allocated CPU capacity (cores/slots)
   enforced during host placement and admission control.
   `current_cpu_utilization` is the dynamic percentage [0.0, 100.0] from real
-  PlanetLab traces.
+  CPU traces.
   `current_actual_cpu` is the actual utilized capacity: cpu_demand * (utilization / 100.0).
 - RAM Provisioning:
-  PlanetLab dataset traces exclusively record CPU utilization percentages.
-  Memory (RAM) measurements are NOT present in the dataset and are NOT fabricated.
+  CPU utilization traces typically record CPU utilization percentages only.
+  Memory (RAM) measurements are not fabricated when absent.
   `ram_demand` represents the statically provisioned memory capacity reserved on
   the host for VM scheduling and capacity constraints.
 """
@@ -38,8 +38,8 @@ class VM:
         vm_id: Unique integer or string identifier for the VM.
         cpu_demand: Reserved CPU capacity units (e.g., CPU cores) for placement.
         ram_demand: Reserved memory in Gigabytes (GB) for placement.
-            NOTE ON RAM: PlanetLab dataset files only record CPU utilization percentages.
-            RAM utilization is not measured in the dataset and is NOT fabricated.
+            NOTE ON RAM: When dataset traces only record CPU utilization percentages,
+            RAM utilization is not measured and is not fabricated.
             ram_demand represents the statically provisioned RAM allocated on the host.
         arrival_time: Discrete simulation time step when the VM arrives.
         duration: Lifetime duration of the VM in discrete time steps.
@@ -170,14 +170,13 @@ class VM:
         duration: Optional[int] = None,
         loop_trace: bool = False,
     ) -> "VM":
-        """Instantiates a VM backed by a PlanetLab CPU utilization trace.
+        """Instantiates a VM backed by a CPU utilization trace.
 
         Args:
             trace: VMTrace instance (from dataset_loader) or a list of float utilization values.
             vm_id: Optional ID override (defaults to trace.vm_id if available, or 'vm_0').
             cpu_demand: Reserved CPU capacity units/cores for placement (default: 2).
             ram_demand: Statically reserved RAM capacity in GB for placement (default: 4).
-                NOTE: PlanetLab does not measure RAM. This is provisioned placement capacity.
             arrival_time: Simulation time step when VM arrives (default: 0).
             duration: Optional duration limit; defaults to len(cpu_samples).
             loop_trace: Whether to cycle the trace continuously when duration exceeds samples.
@@ -294,17 +293,16 @@ class WorkloadGenerator:
         return schedule
 
 
-class PlanetLabWorkloadGenerator:
-    """Generates reproducible simulation workloads from real PlanetLab traces.
+class TraceWorkloadGenerator:
+    """Generates reproducible simulation workloads from real CPU traces.
 
-    Maps loaded PlanetLab VM traces into VM simulation entities, assigning
+    Maps loaded VM traces into VM simulation entities, assigning
     arrival times, reserved CPU cores, and provisioned RAM capacity.
 
     RAM Allocation Note:
-        The PlanetLab dataset records exclusively CPU utilization percentages.
-        RAM consumption is not present in the dataset and is NOT fabricated.
-        RAM capacity is provisioned based on standard datacenter VM flavor profiles
-        (e.g., [2, 4, 8, 16] GB).
+        When traces record only CPU utilization percentages,
+        RAM consumption is provisioned based on standard datacenter VM flavor profiles
+        (e.g., [2, 4, 8, 16] GB) without fabricating unmeasured RAM time series.
     """
 
     def __init__(
@@ -316,7 +314,7 @@ class PlanetLabWorkloadGenerator:
         max_arrival_time: int = 50,
         seed: int = 42,
     ):
-        """Initializes the PlanetLab workload generator.
+        """Initializes the trace workload generator.
 
         Args:
             traces: List of VMTrace objects or raw sample lists.

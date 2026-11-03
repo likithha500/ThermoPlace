@@ -1,7 +1,7 @@
 """Main entry point for ThermoPlace — Thermal-Aware VM Scheduling Simulator.
 
-Step 7: PlanetLab trace-driven baseline evaluation.
-Replaces synthetic workload generation with real PlanetLab CPU-utilization traces.
+Provides command-line interface for running thermal-aware VM placement simulations.
+Note: Dataset integration is currently pending (previous PlanetLab integration has been removed).
 """
 
 import argparse
@@ -16,8 +16,6 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
         pass
 
 from src.datacenter import DataCenter
-from src.dataset_loader import PlanetLabDatasetLoader
-from src.workload import PlanetLabWorkloadGenerator
 from src.thermal import ThermalModel, ThermalConfig
 from src.placement.first_fit import FirstFitPlacement
 from src.simulator import Simulator
@@ -25,19 +23,19 @@ from src.simulator import Simulator
 
 def parse_args(args=None):
     parser = argparse.ArgumentParser(
-        description="ThermoPlace: Thermal-Aware VM Scheduling Simulator (PlanetLab Trace-Driven Baseline)"
+        description="ThermoPlace: Thermal-Aware VM Scheduling Simulator"
     )
     parser.add_argument(
         "--dataset-dir",
         type=str,
-        default="data/raw/planetlab",
-        help="Path to PlanetLab dataset directory or date subdirectory (default: data/raw/planetlab)",
+        default=None,
+        help="Path to dataset directory (no dataset is currently configured; integration pending)",
     )
     parser.add_argument(
         "--max-vms",
         type=int,
         default=50,
-        help="Maximum number of PlanetLab VM traces to load (default: 50; 0 for all)",
+        help="Maximum number of VM traces to load (default: 50; 0 for all)",
     )
     parser.add_argument(
         "--steps",
@@ -100,7 +98,6 @@ def print_banner():
     banner = r"""
 ================================================================================
   ThermoPlace: Thermal-Aware VM Scheduling Simulator
-  Baseline Evaluation: PlanetLab Trace-Driven First Fit Placement
 ================================================================================
     """
     print(banner)
@@ -110,9 +107,8 @@ def main(args=None):
     parsed_args = parse_args(args)
     print_banner()
 
-    dataset_path = Path(parsed_args.dataset_dir)
     print("[*] Simulation Configuration:")
-    print(f"    - Dataset Directory    : {dataset_path}")
+    print(f"    - Dataset Directory    : {parsed_args.dataset_dir}")
     print(f"    - Max VM Traces        : {parsed_args.max_vms if parsed_args.max_vms > 0 else 'All'}")
     print(f"    - Total Time Steps     : {parsed_args.steps}")
     print(f"    - Data Center Topology : {parsed_args.racks} racks x {parsed_args.hosts_per_rack} hosts = {parsed_args.racks * parsed_args.hosts_per_rack} hosts")
@@ -122,7 +118,18 @@ def main(args=None):
     print(f"    - Random Seed          : {parsed_args.seed} (deterministic arrival scheduling)")
     print("-" * 80)
 
-    # 1. Validate Dataset Directory & Load Traces
+    # Validate dataset configuration
+    if parsed_args.dataset_dir is None:
+        print(
+            "\n[ERROR] No dataset is currently configured.\n"
+            "The previous PlanetLab dataset integration has been removed, and the replacement\n"
+            "workload dataset integration is pending.\n"
+            "Please specify a valid dataset path via --dataset-dir once a dataset loader is configured.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    dataset_path = Path(parsed_args.dataset_dir)
     if not dataset_path.exists():
         print(f"\n[ERROR] Dataset directory not found: '{dataset_path}'", file=sys.stderr)
         sys.exit(1)
@@ -130,107 +137,13 @@ def main(args=None):
         print(f"\n[ERROR] Path is not a directory: '{dataset_path}'", file=sys.stderr)
         sys.exit(1)
 
-    print(f"[*] Discovering and loading real PlanetLab traces from: {dataset_path}...")
-    loader = PlanetLabDatasetLoader()
-    max_files = parsed_args.max_vms if (parsed_args.max_vms and parsed_args.max_vms > 0) else None
-
-    direct_files = [f for f in dataset_path.iterdir() if f.is_file() and not f.name.startswith(".")]
-    use_recursive = len(direct_files) == 0
-
-    try:
-        report = loader.load_with_report(dataset_path, max_files=max_files, recursive=use_recursive)
-    except ValueError as e:
-        print(f"\n[ERROR] Failed to load PlanetLab traces: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    print(f"    -> Successfully discovered and loaded {report.total_loaded} valid PlanetLab VM traces.")
-    if report.total_skipped > 0:
-        print(f"    -> Skipped {report.total_skipped} invalid/corrupted files.")
-
-    # 2. Build Deterministic Simulation Schedule from Real Traces
-    print("\n[*] Building trace-driven workload schedule:")
-    print("    - Workload Source      : Real PlanetLab CPU utilization traces")
-    print("    - CPU Model            : Reserved placement cores (1, 2, 4, 8) vs actual trace usage")
-    print("    - RAM Model            : Provisioned placement capacity (2, 4, 8, 16 GB); no fabricated RAM")
-    print("    - Arrival Timing       : Stochastically scheduled across steps via Poisson process")
-
-    workload_gen = PlanetLabWorkloadGenerator(
-        traces=report.valid_traces,
-        arrival_rate_lambda=parsed_args.arrival_rate,
-        max_arrival_time=min(parsed_args.steps - 1, 50),
-        seed=parsed_args.seed,
+    print(
+        f"\n[ERROR] No dataset loader is currently configured to load traces from '{dataset_path}'.\n"
+        "The previous PlanetLab dataset integration has been removed, and dataset integration is pending.\n"
+        "Please configure a valid dataset loader before running the simulation.",
+        file=sys.stderr,
     )
-    schedule = workload_gen.generate_schedule_by_step(total_time_steps=parsed_args.steps)
-    total_scheduled_vms = sum(len(vms) for vms in schedule.values())
-    print(f"    -> Scheduled {total_scheduled_vms} VMs across {parsed_args.steps} simulation steps.")
-
-    # 3. Instantiate Data Center Topology
-    datacenter = DataCenter.create_standard_datacenter(
-        num_racks=parsed_args.racks,
-        hosts_per_rack=parsed_args.hosts_per_rack,
-        cpu_per_host=parsed_args.cpu_per_host,
-        ram_per_host=parsed_args.ram_per_host,
-        initial_temperature_c=parsed_args.ambient_temp,
-    )
-
-    # 4. Configure Thermal Model
-    thermal_config = ThermalConfig(
-        ambient_temperature_c=parsed_args.ambient_temp,
-        hotspot_threshold_c=parsed_args.hotspot_threshold,
-    )
-    thermal_model = ThermalModel(config=thermal_config)
-
-    # 5. Execute Simulation: First Fit Placement under Trace-Driven CPU Utilization
-    first_fit = FirstFitPlacement()
-    simulator = Simulator(
-        datacenter=datacenter,
-        thermal_model=thermal_model,
-        thermal_config=thermal_config,
-    )
-
-    print("\n[*] Executing Baseline Simulation (First Fit with PlanetLab Workload)...")
-    metrics = simulator.run(
-        workload_schedule=schedule,
-        strategy=first_fit,
-        total_steps=parsed_args.steps,
-    )
-
-    # 6. Display Simulation Results Summary
-    summary = metrics.summary()
-    print("\n" + "=" * 80)
-    print("  SIMULATION RESULTS: FIRST FIT (PLANETLAB TRACE-DRIVEN)")
-    print("=" * 80)
-    print(f"  Placement Algorithm             : {summary['algorithm']}")
-    print(f"  Total Arrived VMs               : {summary['total_arrived_vms']}")
-    print(f"  Total Placed VMs                : {summary['total_placed_vms']}")
-    print(f"  Total Rejected VMs              : {summary['total_rejected_vms']}")
-    print(f"  Placement Acceptance Rate       : {summary['acceptance_rate'] * 100:.2f}%")
-    print(f"  Mean Reserved CPU Allocation    : {summary['average_cpu_utilization'] * 100:.2f}%")
-    print(f"  Mean Actual CPU Utilization     : {summary.get('average_actual_cpu_utilization', 0.0) * 100:.2f}%")
-    print(f"  Mean RAM Allocation             : {summary['average_ram_utilization'] * 100:.2f}%")
-    print(f"  Average Power Consumption       : {summary['average_total_power_w']:.2f} W")
-    print("-" * 80)
-    print("  THERMAL TELEMETRY (Simulated Estimates):")
-    print(f"  Peak Host Temperature          : {summary['peak_temperature_c']:.2f} °C")
-    print(f"  Average Max Temperature        : {summary['average_max_temperature_c']:.2f} °C")
-    print(f"  Cumulative Hotspot Events (>=75°C): {summary['cumulative_hotspot_events']}")
-    print(f"  Time Steps with >=1 Hotspot     : {summary['steps_with_hotspots']} / {parsed_args.steps}")
-    print(f"  Average Thermal Imbalance (Std) : {summary['average_thermal_imbalance_std']:.2f} °C")
-    print(f"  Peak Thermal Imbalance (Std)    : {summary['peak_thermal_imbalance_std']:.2f} °C")
-    print("=" * 80)
-
-    # 7. Verify Reset Mechanism for Future Benchmark
-    print("\n[*] Verifying data center reset mechanism for future Milestone 2 benchmark...")
-    simulator.reset(initial_temp=parsed_args.ambient_temp)
-    post_reset_hosts = [h.used_cpu for h in simulator.datacenter.hosts]
-    post_reset_actual = [h.actual_used_cpu for h in simulator.datacenter.hosts]
-    post_reset_temps = [h.simulated_temperature_c for h in simulator.datacenter.hosts]
-    assert all(c == 0 for c in post_reset_hosts), "Error: Reserved CPU not cleared during reset!"
-    assert all(a == 0.0 for a in post_reset_actual), "Error: Actual CPU not cleared during reset!"
-    assert all(abs(t - parsed_args.ambient_temp) < 1e-4 for t in post_reset_temps), "Error: Temps not reset!"
-    print("    -> Data center reset verified successfully (hosts cleared, temperatures restored).\n")
-
-    return summary
+    sys.exit(1)
 
 
 if __name__ == "__main__":

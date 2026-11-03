@@ -7,7 +7,7 @@ A modular research simulation framework designed to evaluate and compare virtual
 ## 🎯 Project Objectives
 
 1. **Compare Heuristic vs. Reinforcement Learning Placement**: Evaluate a traditional baseline (First Fit) against an intelligent thermal-aware tabular Q-Learning scheduler.
-2. **Strict Fair Comparison**: Benchmark both algorithms under **identical workloads and initial physical data center states** using reproducible random seeds.
+2. **Strict Fair Comparison**: Benchmark algorithms under **identical workloads and initial physical data center states** using reproducible random seeds.
 3. **Thermal & Operational Metrics**: Quantify performance via:
    - **Hotspot count** (number of thermal threshold breaches)
    - **Maximum host temperature** ($T_{\max}$)
@@ -26,7 +26,8 @@ ThermoPlace/
 ├── main.py                        # Main CLI entry point to run simulations
 ├── src/
 │   ├── __init__.py                # Package initialization
-│   ├── workload.py                # Synthetic VM workload generator with fixed seeds
+│   ├── dataset_loader.py          # Reusable VM trace structures and reporting (dataset pending)
+│   ├── workload.py                # VM model, synthetic & trace-driven workload generators
 │   ├── datacenter.py              # Physical datacenter model (Host, Rack, DataCenter)
 │   ├── thermal.py                 # Thermal model (power-to-heat, RC inertia, recirculation)
 │   ├── placement/
@@ -39,13 +40,15 @@ ThermoPlace/
 │   ├── metrics.py                 # Telemetry & metric collection (hotspots, imbalance, logs)
 │   └── simulator.py               # Discrete-time simulation engine and execution loop
 └── tests/
-│   ├── __init__.py
-│   ├── test_workload.py           # Unit tests for workload determinism and schema
-│   ├── test_datacenter.py         # Unit tests for host capacity, allocation, and resets
-│   ├── test_thermal.py            # Unit tests for thermal inertia and power models
-│   ├── test_first_fit.py          # Unit tests for First Fit placement decisions
-│   ├── test_metrics.py            # Unit tests for metric calculation accuracy
-│   └── test_simulator.py          # End-to-end integration test for repeatable simulation runs
+    ├── __init__.py
+    ├── test_dataset_loader.py     # Unit tests for VMTrace and report data structures
+    ├── test_workload.py           # Unit tests for workload determinism, lifecycle, and traces
+    ├── test_datacenter.py         # Unit tests for host capacity, allocation, and resets
+    ├── test_thermal.py            # Unit tests for thermal inertia and power models
+    ├── test_first_fit.py          # Unit tests for First Fit placement decisions
+    ├── test_metrics.py            # Unit tests for metric calculation accuracy
+    ├── test_simulator.py          # End-to-end integration tests for simulation runs
+    └── test_main.py               # Unit tests for CLI parsing and dataset validation
 ```
 
 ---
@@ -84,8 +87,6 @@ ThermoPlace/
 
 ---
 
----
-
 ## 🚀 Getting Started
 
 ### 1. Requirements & Setup
@@ -95,46 +96,38 @@ pip install -r requirements.txt
 ```
 
 ### 2. Dataset Setup
-ThermoPlace uses real-world CPU utilization traces from the PlanetLab workload dataset located in:
-```text
-data/raw/planetlab/
-├── 20110303/   # Date folder with ~1,000+ VM trace files
-├── 20110306/
-├── ...
-└── 20110420/
-```
-Each file represents a VM's CPU utilization measured at discrete 5-minute intervals over 24 hours (288 sequential samples in $[0, 100]\%$).
+The PlanetLab dataset integration has been removed from ThermoPlace. Currently:
+- No dataset is installed in `data/raw/`.
+- No replacement dataset has been integrated yet.
+- Dataset integration is pending (e.g. integration of the Bitbrains GWA-T-12 dataset is planned as a separate future task).
+
+The codebase maintains reusable trace data structures (`VMTrace`, `DatasetLoadReport` in [`src/dataset_loader.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/dataset_loader.py)) and a generic trace workload generator (`TraceWorkloadGenerator` in [`src/workload.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/workload.py)) ready for future dataset integration.
 
 ### 3. Running the Simulation
-To execute the baseline First Fit simulation using the default PlanetLab workload:
+Because the former dataset has been removed and replacement dataset integration is pending, running `main.py` directly without a configured dataset loader will inform the user:
 ```bash
 python main.py
 ```
+This produces an actionable message indicating that no dataset is currently configured.
 
-Optional CLI configuration flags:
+CLI options available:
 ```bash
-# Run with a specific date subdirectory and custom VM count
-python main.py --dataset-dir data/raw/planetlab/20110303 --max-vms 50 --steps 100
-
-# Run with custom topology (4 racks x 8 hosts = 32 hosts) and ambient temperature
-python main.py --dataset-dir data/raw/planetlab --max-vms 100 --racks 4 --hosts-per-rack 8 --ambient-temp 22.0
-
 # Available CLI options:
-#   --dataset-dir PATH       Path to PlanetLab dataset or subfolder (default: data/raw/planetlab)
-#   --max-vms N              Maximum VM traces to load (default: 50; 0 for all)
-#   --steps N                Total simulation steps to run (default: 100)
-#   --racks N                Number of server racks (default: 2)
-#   --hosts-per-rack N       Number of hosts per rack (default: 4)
-#   --cpu-per-host N         Host CPU capacity in cores (default: 16)
-#   --ram-per-host N         Host RAM capacity in GB (default: 64)
-#   --arrival-rate FLOAT     Mean arrivals per step (default: 2.0; 0 for all at t=0)
-#   --seed INT               Deterministic seed for arrival & flavor assignment (default: 42)
-#   --ambient-temp FLOAT     Ambient CRAH temperature in °C (default: 25.0)
+#   --dataset-dir PATH        Path to dataset directory (integration pending)
+#   --max-vms N               Maximum VM traces to load (default: 50; 0 for all)
+#   --steps N                 Total simulation steps to run (default: 100)
+#   --racks N                 Number of server racks (default: 2)
+#   --hosts-per-rack N        Number of hosts per rack (default: 4)
+#   --cpu-per-host N          Host CPU capacity in cores (default: 16)
+#   --ram-per-host N          Host RAM capacity in GB (default: 64)
+#   --arrival-rate FLOAT      Mean arrivals per step (default: 2.0; 0 for all at t=0)
+#   --seed INT                Deterministic seed for arrival & flavor assignment (default: 42)
+#   --ambient-temp FLOAT      Ambient CRAH temperature in °C (default: 25.0)
 #   --hotspot-threshold FLOAT Critical hotspot temperature in °C (default: 75.0)
 ```
 
 ### 4. Running Unit Tests
-Run all unit tests across the test suite:
+All unit tests across the test suite can be executed with:
 ```bash
 python -m unittest discover -s tests -v
 ```
@@ -143,15 +136,17 @@ python -m unittest discover -s tests -v
 
 ## 📌 Implementation Status
 
-- [x] **Milestone 1 & Dataset Integration**:
-  - Dedicated PlanetLab dataset loader ([`src/dataset_loader.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/dataset_loader.py)) with strict format validation, missing sample detection, and corrupt file reporting.
-  - Trace-driven VM model ([`src/workload.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/workload.py)) storing chronological samples, tracking progression, and separating reserved capacity from actual utilization.
-  - Object-oriented Host, Rack, and DataCenter models ([`src/datacenter.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/datacenter.py)) enforcing CPU/RAM constraints while tracking dynamic utilized CPU.
-  - Analytical thermal model ([`src/thermal.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/thermal.py)) driving power dissipation, RC thermal inertia, and recirculation from actual trace samples.
+- [x] **Core Simulation Architecture**:
+  - Object-oriented Host, Rack, and DataCenter models ([`src/datacenter.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/datacenter.py)) enforcing CPU and RAM capacity limits while tracking dynamic utilized CPU.
+  - Analytical thermal model ([`src/thermal.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/thermal.py)) driving power dissipation, lumped RC thermal inertia, and rack recirculation.
   - Baseline First Fit VM placement scheduler ([`src/placement/first_fit.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/placement/first_fit.py)).
-  - Discrete-time simulation engine ([`src/simulator.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/simulator.py)) and comprehensive telemetry reporting ([`src/metrics.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/metrics.py)).
-  - CLI runner ([`main.py`](file:///c:/Users/likitha%20s/ThermoPlace/main.py)) driven exclusively by real PlanetLab traces.
-- [ ] **Milestone 2 (Next)**:
+  - Discrete-time simulation engine ([`src/simulator.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/simulator.py)) and telemetry reporting ([`src/metrics.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/metrics.py)).
+  - Reusable trace structures ([`src/dataset_loader.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/dataset_loader.py)) and trace-driven workload models ([`src/workload.py`](file:///c:/Users/likitha%20s/ThermoPlace/src/workload.py)).
+  - CLI runner ([`main.py`](file:///c:/Users/likitha%20s/ThermoPlace/main.py)) with topology and thermal parameter configuration.
+- [ ] **Workload Dataset Integration (Pending)**:
+  - PlanetLab dataset and dependencies removed.
+  - Integration of replacement workload dataset (e.g., Bitbrains GWA-T-12) to be implemented in a subsequent task.
+- [ ] **Milestone 2 (Future)**:
   - Tabular Q-Learning placement agent with state discretization (thermal & utilization bins).
   - Reward function penalizing hotspot creation and thermal variance.
   - Comparative benchmark: First Fit vs. Q-Learning under identical workload traces.
