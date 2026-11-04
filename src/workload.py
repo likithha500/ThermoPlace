@@ -279,17 +279,26 @@ class WorkloadGenerator:
 
         return vms
 
-    def generate_schedule_by_step(self) -> Dict[int, List[VM]]:
+    def generate_schedule_by_step(self, total_time_steps: Optional[int] = None) -> Dict[int, List[VM]]:
         """Generates a mapping from simulation time step to arriving VMs.
 
         Returns:
             Dictionary where keys are time steps and values are lists of arriving VMs.
         """
         all_vms = self.generate_workload()
-        schedule: Dict[int, List[VM]] = {t: [] for t in range(self.total_time_steps)}
+        steps = total_time_steps or self.total_time_steps
+        schedule: Dict[int, List[VM]] = {t: [] for t in range(steps)}
         for vm in all_vms:
             if vm.arrival_time in schedule:
                 schedule[vm.arrival_time].append(vm)
+        return schedule
+
+    @staticmethod
+    def reset_schedule(schedule: Dict[int, List[VM]]) -> Dict[int, List[VM]]:
+        """Resets all VM states in the schedule for clean episode re-execution."""
+        for vms in schedule.values():
+            for vm in vms:
+                vm.reset()
         return schedule
 
 
@@ -408,4 +417,12 @@ class TraceWorkloadGenerator:
         for vm in all_vms:
             if vm.arrival_time in schedule:
                 schedule[vm.arrival_time].append(vm)
+        return schedule
+
+    @staticmethod
+    def reset_schedule(schedule: Dict[int, List[VM]]) -> Dict[int, List[VM]]:
+        """Resets all VM states in the schedule for clean episode re-execution."""
+        for vms in schedule.values():
+            for vm in vms:
+                vm.reset()
         return schedule

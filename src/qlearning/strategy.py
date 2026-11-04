@@ -74,6 +74,7 @@ class QLearningTrainingStats:
     cumulative_reward: float = 0.0
     episode_count: int = 0
     epsilon_history: List[float] = field(default_factory=list)
+    episode_rewards: List[float] = field(default_factory=list)
 
 
 class QLearningSimulatorStrategy(BasePlacementStrategy):
@@ -115,6 +116,8 @@ class QLearningSimulatorStrategy(BasePlacementStrategy):
         self.reward_calculator = ThermalRewardCalculator(reward_config or RewardConfig())
         self.training = training
         self.stats = QLearningTrainingStats()
+        self.current_episode_reward: float = 0.0
+        self.last_episode_reward: float = 0.0
 
         # Pending transitions buffered within a single time step
         self._pending: List[_PendingTransition] = []
@@ -126,6 +129,12 @@ class QLearningSimulatorStrategy(BasePlacementStrategy):
     # ------------------------------------------------------------------
     # Public control API
     # ------------------------------------------------------------------
+
+    def reset_episode(self) -> None:
+        """Resets per-episode state while strictly preserving learned Q-values."""
+        self._pending.clear()
+        self._current_step_vms.clear()
+        self.current_episode_reward = 0.0
 
     def set_training(self, training: bool) -> None:
         """Switch between training and evaluation mode at runtime.
@@ -219,6 +228,8 @@ class QLearningSimulatorStrategy(BasePlacementStrategy):
         datacenter: DataCenter,
     ) -> None:
         """Cache VMs arriving this step (used for lookahead in next-state calc)."""
+        if time_step == 0:
+            self.current_episode_reward = 0.0
         self._current_step_vms = list(arriving_vms)
         self._pending.clear()
 
@@ -299,6 +310,7 @@ class QLearningSimulatorStrategy(BasePlacementStrategy):
                 reward = breakdown.total_reward
 
             self.stats.cumulative_reward += reward
+            self.current_episode_reward += reward
 
             if self.training and trans.state and trans.action is not None:
                 # Q-table update: terminal transition (no future Q term)
@@ -321,13 +333,16 @@ class QLearningSimulatorStrategy(BasePlacementStrategy):
     def on_simulation_end(self, datacenter: DataCenter) -> None:
         """Decay epsilon at episode end (once per simulation run)."""
         self.stats.episode_count += 1
+        self.last_episode_reward = self.current_episode_reward
+        self.stats.episode_rewards.append(self.last_episode_reward)
         if self.training:
             new_eps = self.agent.decay_epsilon()
             self.stats.epsilon_history.append(new_eps)
             logger.info(
-                "Episode %d complete | cumulative_reward=%.2f | epsilon=%.4f",
+                "Episode %d complete | cumulative_reward=%.2f | episode_reward=%.2f | epsilon=%.4f",
                 self.stats.episode_count,
                 self.stats.cumulative_reward,
+                self.last_episode_reward,
                 new_eps,
             )
 

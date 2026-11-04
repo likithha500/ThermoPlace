@@ -22,12 +22,17 @@ Q-Learning Update Rule:
 """
 
 from dataclasses import dataclass
+import json
+import logging
+from pathlib import Path
 import random
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from src.placement.base import BasePlacementStrategy
 from src.datacenter import DataCenter, Host
 from src.workload import VM
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -471,3 +476,206 @@ class QLearningPlacementAgent(BasePlacementStrategy):
     def reset_q_table(self) -> None:
         """Clears all stored entries in the Q-table."""
         self.q_table.clear()
+
+    # -------------------------------------------------------------------------
+    # 7. Model Persistence (Save / Load)
+    # -------------------------------------------------------------------------
+
+    # @flows QLearningPlacementAgent -> FileSystem via JSON -- "Saves trained Q-table and metadata to disk"
+    # @handles model_weights on QLearningPlacementAgent -- "Serializes discrete state-action Q-table safely"
+    def save(
+        self,
+        file_path: Union[str, Path],
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Saves the trained Q-table, state configuration, and hyperparameters to a JSON file.
+
+        Args:
+            file_path: Output file path (e.g. 'models/qlearning/q_table.json').
+            metadata: Optional additional training metadata or context dict.
+        """
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Serialize Q-table non-zero entries
+        entries = []
+        for (state, action), q_val in sorted(self.q_table.items(), key=lambda item: (str(item[0][0]), str(item[0][1]))):
+            if abs(q_val) > 1e-9:
+                entries.append({
+                    "state": list(state),
+                    "action": str(action),
+                    "q_value": float(q_val),
+                })
+
+        cfg = self.state_config
+        state_cfg_dict = {
+            "vm_cpu_thresholds": list(cfg.vm_cpu_thresholds),
+            "vm_ram_thresholds": list(cfg.vm_ram_thresholds),
+            "host_cpu_thresholds": list(cfg.host_cpu_thresholds),
+            "host_ram_thresholds": list(cfg.host_ram_thresholds),
+            "host_temp_thresholds": list(cfg.host_temp_thresholds),
+            "hotspot_threshold_c": float(cfg.hotspot_threshold_c),
+            "warm_threshold_c": float(cfg.warm_threshold_c),
+        }
+
+        hyperparameters = {
+            "learning_rate": float(self.learning_rate),
+            "discount_factor": float(self.discount_factor),
+            "epsilon": float(self.epsilon),
+            "min_epsilon": float(self.min_epsilon),
+            "epsilon_decay": float(self.epsilon_decay),
+            "seed": self.seed,
+        }
+
+        payload = {
+            "version": "1.0",
+            "algorithm": "Q-Learning",
+            "hyperparameters": hyperparameters,
+            "state_config": state_cfg_dict,
+            "training_metadata": metadata or {},
+            "num_entries": len(entries),
+            "entries": entries,
+        }
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+
+    # @flows FileSystem -> QLearningPlacementAgent via JSON -- "Loads trained Q-table and validates schema"
+    # @handles model_weights on QLearningPlacementAgent -- "Deserializes discrete state-action Q-table safely"
+    # @validates #qtable-schema for QLearningPlacementAgent -- "Validates state configuration thresholds before deserialization"
+    def load(
+        self,
+        file_path: Union[str, Path],
+        validate_config: bool = True,
+        restore_hyperparameters: bool = False,
+    ) -> None:
+        """Loads a saved Q-table from a JSON file into this agent.
+
+        Args:
+            file_path: Path to the JSON model file.
+            validate_config: If True, checks that the saved state discretization
+                thresholds match this agent's state_config, raising ValueError on mismatch.
+            restore_hyperparameters: If True, also updates learning_rate, discount_factor,
+                epsilon, min_epsilon, epsilon_decay, and seed from the file.
+
+        Raises:
+            FileNotFoundError: If the specified model file does not exist.
+            ValueError: If the file format is invalid or state configurations are incompatible.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Q-table model file not found: '{file_path}'")
+
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        if not isinstance(payload, dict) or "entries" not in payload:
+            raise ValueError(f"Invalid Q-table model file format in '{file_path}'. Missing 'entries'.")
+
+        if validate_config and "state_config" in payload:
+            saved_sc = payload["state_config"]
+            cfg = self.state_config
+            mismatches = []
+            if tuple(saved_sc.get("vm_cpu_thresholds", [])) != tuple(cfg.vm_cpu_thresholds):
+                mismatches.append(
+                    f"vm_cpu_thresholds (saved: {saved_sc.get('vm_cpu_thresholds')}, current: {cfg.vm_cpu_thresholds})"
+                )
+            if tuple(saved_sc.get("vm_ram_thresholds", [])) != tuple(cfg.vm_ram_thresholds):
+                mismatches.append(
+                    f"vm_ram_thresholds (saved: {saved_sc.get('vm_ram_thresholds')}, current: {cfg.vm_ram_thresholds})"
+                )
+            if tuple(saved_sc.get("host_cpu_thresholds", [])) != tuple(cfg.host_cpu_thresholds):
+                mismatches.append(
+                    f"host_cpu_thresholds (saved: {saved_sc.get('host_cpu_thresholds')}, current: {cfg.host_cpu_thresholds})"
+                )
+            if tuple(saved_sc.get("host_ram_thresholds", [])) != tuple(cfg.host_ram_thresholds):
+                mismatches.append(
+                    f"host_ram_thresholds (saved: {saved_sc.get('host_ram_thresholds')}, current: {cfg.host_ram_thresholds})"
+                )
+            if tuple(saved_sc.get("host_temp_thresholds", [])) != tuple(cfg.host_temp_thresholds):
+                mismatches.append(
+                    f"host_temp_thresholds (saved: {saved_sc.get('host_temp_thresholds')}, current: {cfg.host_temp_thresholds})"
+                )
+            if float(saved_sc.get("hotspot_threshold_c", -1)) != float(cfg.hotspot_threshold_c):
+                mismatches.append(
+                    f"hotspot_threshold_c (saved: {saved_sc.get('hotspot_threshold_c')}, current: {cfg.hotspot_threshold_c})"
+                )
+
+            if mismatches:
+                raise ValueError(
+                    f"Incompatible state configuration in '{file_path}':\n  " + "\n  ".join(mismatches)
+                )
+
+        if restore_hyperparameters and "hyperparameters" in payload:
+            hp = payload["hyperparameters"]
+            self.learning_rate = hp.get("learning_rate", self.learning_rate)
+            self.discount_factor = hp.get("discount_factor", self.discount_factor)
+            self.epsilon = hp.get("epsilon", self.epsilon)
+            self.min_epsilon = hp.get("min_epsilon", self.min_epsilon)
+            self.epsilon_decay = hp.get("epsilon_decay", self.epsilon_decay)
+            if "seed" in hp:
+                self.seed = hp["seed"]
+                if self.seed is not None:
+                    self.rng = random.Random(self.seed)
+
+        self.q_table.clear()
+        for entry in payload["entries"]:
+            state = tuple(entry["state"])
+            action = entry["action"]
+            q_val = float(entry["q_value"])
+            self.q_table[(state, action)] = q_val
+
+    @classmethod
+    def load_from_file(
+        cls,
+        file_path: Union[str, Path],
+        validate_config: bool = True,
+    ) -> "QLearningPlacementAgent":
+        """Instantiates a new QLearningPlacementAgent directly from a saved JSON model file.
+
+        Args:
+            file_path: Path to the JSON model file.
+            validate_config: Kept for API symmetry.
+
+        Returns:
+            Configured QLearningPlacementAgent instance with loaded Q-table.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Q-table model file not found: '{file_path}'")
+
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        state_cfg = StateDiscretizerConfig()
+        if "state_config" in payload:
+            sc = payload["state_config"]
+            state_cfg = StateDiscretizerConfig(
+                vm_cpu_thresholds=tuple(sc.get("vm_cpu_thresholds", (2.0, 4.0))),
+                vm_ram_thresholds=tuple(sc.get("vm_ram_thresholds", (4.0, 16.0))),
+                host_cpu_thresholds=tuple(sc.get("host_cpu_thresholds", (0.40, 0.70))),
+                host_ram_thresholds=tuple(sc.get("host_ram_thresholds", (0.40, 0.70))),
+                host_temp_thresholds=tuple(sc.get("host_temp_thresholds", (55.0, 65.0, 75.0))),
+                hotspot_threshold_c=float(sc.get("hotspot_threshold_c", 75.0)),
+                warm_threshold_c=float(sc.get("warm_threshold_c", 65.0)),
+            )
+
+        hp = payload.get("hyperparameters", {})
+        agent = cls(
+            learning_rate=hp.get("learning_rate", 0.1),
+            discount_factor=hp.get("discount_factor", 0.95),
+            epsilon=hp.get("epsilon", 1.0),
+            min_epsilon=hp.get("min_epsilon", 0.05),
+            epsilon_decay=hp.get("epsilon_decay", 0.995),
+            seed=hp.get("seed", None),
+            state_config=state_cfg,
+        )
+
+        agent.q_table.clear()
+        for entry in payload.get("entries", []):
+            state = tuple(entry["state"])
+            action = entry["action"]
+            q_val = float(entry["q_value"])
+            agent.q_table[(state, action)] = q_val
+
+        return agent

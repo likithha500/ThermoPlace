@@ -155,7 +155,30 @@ class Simulator:
         strategy.on_simulation_end(datacenter=self.datacenter)
         return metrics
 
-    def reset(self, initial_temp: Optional[float] = None) -> None:
-        """Resets the simulator and data center to fresh initial state."""
+    def reset(
+        self,
+        initial_temp: Optional[float] = None,
+        workload_schedule: Optional[Dict[int, List[VM]]] = None,
+    ) -> None:
+        """Resets the simulator and data center to fresh initial state.
+
+        Args:
+            initial_temp: Optional temperature override in Celsius for data center hosts.
+            workload_schedule: Optional workload schedule mapping whose VMs will be reset
+                to their initial durations and trace offsets.
+        """
         self.current_step = 0
         self.datacenter.reset(initial_temp)
+        if workload_schedule is not None:
+            self.reset_workload(workload_schedule)
+
+    @staticmethod
+    def reset_workload(workload_schedule: Dict[int, List[VM]]) -> None:
+        """Resets all VM entities in a workload schedule to their initial state.
+
+        Ensures chronological sample pointers and durations are reset so the trace
+        can be safely replayed across multiple simulation episodes.
+        """
+        for vm_list in workload_schedule.values():
+            for vm in vm_list:
+                vm.reset()

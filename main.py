@@ -14,19 +14,19 @@ Run First Fit simulation::
 
     python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8 --strategy first_fit
 
-Run Q-Learning in training mode::
+Run Q-Learning training (multi-episode)::
 
-    python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8 --strategy q_learning
+    python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8 --strategy q_learning --train --episodes 500
 
-Run Q-Learning in evaluation mode (no Q-table updates)::
+Run Q-Learning in evaluation mode using a saved Q-table::
 
-    python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8 \\
-                   --strategy q_learning --eval-mode
+    python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8 \
+                   --strategy q_learning --eval-mode --q-table models/qlearning/q_table.json
 """
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
 # Ensure UTF-8 stdout formatting for degree symbols on Windows
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -42,6 +42,8 @@ from src.simulator import Simulator
 from src.workload import TraceWorkloadGenerator
 
 
+# @flows User -> CLI via parse_args -- "CLI configuration input parsing"
+# @handles configuration on CLI -- "Validates hyperparameter inputs and dataset paths"
 def parse_args(args=None):
     parser = argparse.ArgumentParser(
         description="ThermoPlace: Thermal-Aware VM Scheduling Simulator"
@@ -125,6 +127,75 @@ def parse_args(args=None):
         default=False,
         help="Run Q-Learning in evaluation mode (no Q-table updates, greedy selection only)",
     )
+    # Training and persistence options
+    parser.add_argument(
+        "--train",
+        action="store_true",
+        default=False,
+        help="Run multi-episode Q-Learning training loop",
+    )
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=1,
+        help="Number of training episodes (default: 1 for single simulation; defaults to 500 when --train specified without --episodes)",
+    )
+    parser.add_argument(
+        "--q-table",
+        type=str,
+        default=None,
+        help="Path to saved Q-table JSON file (loaded for evaluation or continued training)",
+    )
+    parser.add_argument(
+        "--learning-rate", "--alpha",
+        type=float,
+        default=0.1,
+        dest="learning_rate",
+        help="Learning rate alpha in [0, 1] (default: 0.1)",
+    )
+    parser.add_argument(
+        "--discount-factor", "--gamma",
+        type=float,
+        default=0.95,
+        dest="discount_factor",
+        help="Discount factor gamma in [0, 1] (default: 0.95)",
+    )
+    parser.add_argument(
+        "--initial-epsilon",
+        type=float,
+        default=1.0,
+        help="Initial exploration rate in [0, 1] (default: 1.0)",
+    )
+    parser.add_argument(
+        "--min-epsilon",
+        type=float,
+        default=0.05,
+        help="Minimum exploration rate floor (default: 0.05)",
+    )
+    parser.add_argument(
+        "--epsilon-decay",
+        type=float,
+        default=0.995,
+        help="Multiplicative decay factor per episode (default: 0.995)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="results/training",
+        help="Directory to save CSV history (default: results/training)",
+    )
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        default="models/qlearning/q_table.json",
+        help="File path to save the trained Q-table JSON (default: models/qlearning/q_table.json)",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help="Overwrite existing CSV history and model files instead of preserving them",
+    )
     return parser.parse_args(args)
 
 
@@ -160,17 +231,28 @@ def _build_strategy(parsed_args):
     from src.qlearning.agent import QLearningPlacementAgent
     from src.qlearning.strategy import QLearningSimulatorStrategy
 
-    agent = QLearningPlacementAgent(
-        learning_rate=0.1,
-        discount_factor=0.95,
-        epsilon=1.0,
-        min_epsilon=0.05,
-        epsilon_decay=0.995,
-        seed=parsed_args.seed,
-    )
+    # Check if a saved Q-table is provided
+    if parsed_args.q_table is not None:
+        agent = QLearningPlacementAgent.load_from_file(parsed_args.q_table)
+        print(f"[*] Loaded Q-table from: {parsed_args.q_table} ({len(agent.q_table)} entries)")
+    else:
+        agent = QLearningPlacementAgent(
+            learning_rate=parsed_args.learning_rate,
+            discount_factor=parsed_args.discount_factor,
+            epsilon=parsed_args.initial_epsilon,
+            min_epsilon=parsed_args.min_epsilon,
+            epsilon_decay=parsed_args.epsilon_decay,
+            seed=parsed_args.seed,
+        )
+
+    # In evaluation mode: force epsilon = 0.0 and freeze updates
+    is_training = not parsed_args.eval_mode
+    if parsed_args.eval_mode:
+        agent.epsilon = 0.0
+
     strategy = QLearningSimulatorStrategy(
         agent=agent,
-        training=not parsed_args.eval_mode,
+        training=is_training,
     )
     return strategy
 
@@ -190,7 +272,12 @@ def main(args=None):
     print(f"    - Random Seed          : {parsed_args.seed} (deterministic arrival scheduling)")
     print(f"    - Placement Strategy   : {parsed_args.strategy}")
     if parsed_args.strategy == "q_learning":
-        mode = "evaluation (greedy, no Q-table updates)" if parsed_args.eval_mode else "training (epsilon-greedy)"
+        if parsed_args.train:
+            mode = f"multi-episode training ({parsed_args.episodes if parsed_args.episodes > 1 else 500} episodes)"
+        elif parsed_args.eval_mode:
+            mode = "evaluation (greedy, no Q-table updates)"
+        else:
+            mode = "single-episode training (epsilon-greedy)"
         print(f"    - Q-Learning Mode      : {mode}")
     print("-" * 80)
 
@@ -212,7 +299,38 @@ def main(args=None):
         print(f"\n[ERROR] Path is not a directory: '{dataset_path}'", file=sys.stderr)
         sys.exit(1)
 
-    # Load Bitbrains traces
+    # Multi-episode training path
+    if parsed_args.train and parsed_args.strategy == "q_learning":
+        from src.qlearning.trainer import QLearningTrainer, TrainingConfig
+
+        num_episodes = parsed_args.episodes if parsed_args.episodes > 1 else 500
+        train_cfg = TrainingConfig(
+            episodes=num_episodes,
+            learning_rate=parsed_args.learning_rate,
+            discount_factor=parsed_args.discount_factor,
+            initial_epsilon=parsed_args.initial_epsilon,
+            min_epsilon=parsed_args.min_epsilon,
+            epsilon_decay=parsed_args.epsilon_decay,
+            seed=parsed_args.seed,
+            dataset_dir=str(dataset_path),
+            max_vms=parsed_args.max_vms,
+            steps=parsed_args.steps,
+            racks=parsed_args.racks,
+            hosts_per_rack=parsed_args.hosts_per_rack,
+            cpu_per_host=parsed_args.cpu_per_host,
+            ram_per_host=parsed_args.ram_per_host,
+            arrival_rate=parsed_args.arrival_rate,
+            ambient_temp=parsed_args.ambient_temp,
+            hotspot_threshold=parsed_args.hotspot_threshold,
+            output_dir=parsed_args.output_dir,
+            model_path=parsed_args.model_path,
+            overwrite=parsed_args.overwrite,
+        )
+        trainer = QLearningTrainer(config=train_cfg)
+        trainer.train()
+        return
+
+    # Load Bitbrains traces for single-run simulation
     print(f"\n[*] Loading Bitbrains traces from: {dataset_path}")
     try:
         from src.bitbrains_loader import BitbrainsLoader
@@ -277,7 +395,7 @@ def main(args=None):
         from src.qlearning.strategy import QLearningSimulatorStrategy
         if isinstance(strategy, QLearningSimulatorStrategy):
             stats = strategy.stats
-            print("\n[*] Q-Learning Training Statistics:")
+            print("\n[*] Q-Learning Statistics:")
             print(f"    Total placements     : {stats.total_placements}")
             print(f"    Total rejections     : {stats.total_rejections}")
             print(f"    Q-table entries      : {strategy.q_table_size}")
