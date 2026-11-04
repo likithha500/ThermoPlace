@@ -1,12 +1,32 @@
 """Main entry point for ThermoPlace — Thermal-Aware VM Scheduling Simulator.
 
-Provides command-line interface for running thermal-aware VM placement simulations.
-Note: Dataset integration is currently pending (previous PlanetLab integration has been removed).
+Provides command-line interface for running thermal-aware VM placement simulations
+using the Bitbrains GWA-T-12 dataset and either the First Fit or Q-Learning strategy.
+
+Supported strategies
+--------------------
+  ``--strategy first_fit``    — Traditional First Fit baseline (default).
+  ``--strategy q_learning``   — Tabular Q-Learning thermal-aware placement.
+
+Example usage
+-------------
+Run First Fit simulation::
+
+    python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8 --strategy first_fit
+
+Run Q-Learning in training mode::
+
+    python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8 --strategy q_learning
+
+Run Q-Learning in evaluation mode (no Q-table updates)::
+
+    python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8 \\
+                   --strategy q_learning --eval-mode
 """
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Ensure UTF-8 stdout formatting for degree symbols on Windows
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -19,6 +39,7 @@ from src.datacenter import DataCenter
 from src.thermal import ThermalModel, ThermalConfig
 from src.placement.first_fit import FirstFitPlacement
 from src.simulator import Simulator
+from src.workload import TraceWorkloadGenerator
 
 
 def parse_args(args=None):
@@ -29,7 +50,7 @@ def parse_args(args=None):
         "--dataset-dir",
         type=str,
         default=None,
-        help="Path to dataset directory (no dataset is currently configured; integration pending)",
+        help="Path to Bitbrains dataset directory (e.g. dataset/bitbrains/fastStorage/2013-8)",
     )
     parser.add_argument(
         "--max-vms",
@@ -91,6 +112,19 @@ def parse_args(args=None):
         default=75.0,
         help="Critical hotspot temperature threshold in Celsius (default: 75.0)",
     )
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        default="first_fit",
+        choices=["first_fit", "q_learning"],
+        help="Placement strategy to use: 'first_fit' (default) or 'q_learning'",
+    )
+    parser.add_argument(
+        "--eval-mode",
+        action="store_true",
+        default=False,
+        help="Run Q-Learning in evaluation mode (no Q-table updates, greedy selection only)",
+    )
     return parser.parse_args(args)
 
 
@@ -101,6 +135,44 @@ def print_banner():
 ================================================================================
     """
     print(banner)
+
+
+def print_summary(summary: dict, strategy_name: str) -> None:
+    """Prints a formatted simulation result summary."""
+    print("\n" + "=" * 80)
+    print(f"  Simulation Results — {strategy_name}")
+    print("=" * 80)
+    for key, value in summary.items():
+        label = key.replace("_", " ").title()
+        if isinstance(value, float):
+            print(f"    {label:<40}: {value:.4f}")
+        else:
+            print(f"    {label:<40}: {value}")
+    print("-" * 80)
+
+
+def _build_strategy(parsed_args):
+    """Constructs the placement strategy from CLI arguments."""
+    if parsed_args.strategy == "first_fit":
+        return FirstFitPlacement()
+
+    # Q-Learning strategy
+    from src.qlearning.agent import QLearningPlacementAgent
+    from src.qlearning.strategy import QLearningSimulatorStrategy
+
+    agent = QLearningPlacementAgent(
+        learning_rate=0.1,
+        discount_factor=0.95,
+        epsilon=1.0,
+        min_epsilon=0.05,
+        epsilon_decay=0.995,
+        seed=parsed_args.seed,
+    )
+    strategy = QLearningSimulatorStrategy(
+        agent=agent,
+        training=not parsed_args.eval_mode,
+    )
+    return strategy
 
 
 def main(args=None):
@@ -116,15 +188,18 @@ def main(args=None):
     print(f"    - Ambient Temp (CRAH)  : {parsed_args.ambient_temp:.1f} °C")
     print(f"    - Hotspot Threshold    : {parsed_args.hotspot_threshold:.1f} °C")
     print(f"    - Random Seed          : {parsed_args.seed} (deterministic arrival scheduling)")
+    print(f"    - Placement Strategy   : {parsed_args.strategy}")
+    if parsed_args.strategy == "q_learning":
+        mode = "evaluation (greedy, no Q-table updates)" if parsed_args.eval_mode else "training (epsilon-greedy)"
+        print(f"    - Q-Learning Mode      : {mode}")
     print("-" * 80)
 
     # Validate dataset configuration
     if parsed_args.dataset_dir is None:
         print(
-            "\n[ERROR] No dataset is currently configured.\n"
-            "The previous PlanetLab dataset integration has been removed, and the replacement\n"
-            "workload dataset integration is pending.\n"
-            "Please specify a valid dataset path via --dataset-dir once a dataset loader is configured.",
+            "\n[ERROR] No dataset directory specified.\n"
+            "Please provide a path via --dataset-dir.\n"
+            "Example: python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -137,13 +212,81 @@ def main(args=None):
         print(f"\n[ERROR] Path is not a directory: '{dataset_path}'", file=sys.stderr)
         sys.exit(1)
 
-    print(
-        f"\n[ERROR] No dataset loader is currently configured to load traces from '{dataset_path}'.\n"
-        "The previous PlanetLab dataset integration has been removed, and dataset integration is pending.\n"
-        "Please configure a valid dataset loader before running the simulation.",
-        file=sys.stderr,
+    # Load Bitbrains traces
+    print(f"\n[*] Loading Bitbrains traces from: {dataset_path}")
+    try:
+        from src.bitbrains_loader import BitbrainsLoader
+        loader = BitbrainsLoader()
+        max_traces = parsed_args.max_vms if parsed_args.max_vms > 0 else None
+        report = loader.load_with_report(
+            directory_path=dataset_path,
+            max_traces=max_traces,
+            recursive=True,
+        )
+    except Exception as exc:
+        print(f"\n[ERROR] Failed to load dataset: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"    Loaded  : {report.total_loaded} VM traces")
+    print(f"    Skipped : {report.total_skipped} files")
+
+    if report.total_loaded == 0:
+        print("\n[ERROR] No VM traces were loaded. Cannot run simulation.", file=sys.stderr)
+        sys.exit(1)
+
+    # Build workload schedule from traces
+    gen = TraceWorkloadGenerator(
+        traces=report.valid_traces,
+        arrival_rate_lambda=parsed_args.arrival_rate,
+        max_arrival_time=parsed_args.steps,
+        seed=parsed_args.seed,
     )
-    sys.exit(1)
+    schedule = gen.generate_schedule_by_step(total_time_steps=parsed_args.steps)
+
+    # Build data center
+    thermal_config = ThermalConfig(
+        ambient_temperature_c=parsed_args.ambient_temp,
+        hotspot_threshold_c=parsed_args.hotspot_threshold,
+    )
+    dc = DataCenter.create_standard_datacenter(
+        num_racks=parsed_args.racks,
+        hosts_per_rack=parsed_args.hosts_per_rack,
+        cpu_per_host=parsed_args.cpu_per_host,
+        ram_per_host=parsed_args.ram_per_host,
+        initial_temperature_c=parsed_args.ambient_temp,
+    )
+    thermal_model = ThermalModel(config=thermal_config)
+
+    # Build placement strategy
+    strategy = _build_strategy(parsed_args)
+
+    # Run simulation
+    sim = Simulator(datacenter=dc, thermal_model=thermal_model)
+    print(f"\n[*] Running simulation with strategy: {strategy.name} ...")
+    metrics = sim.run(
+        workload_schedule=schedule,
+        strategy=strategy,
+        total_steps=parsed_args.steps,
+    )
+
+    summary = metrics.summary()
+    print_summary(summary, strategy.name)
+
+    # Q-Learning specific stats
+    if parsed_args.strategy == "q_learning":
+        from src.qlearning.strategy import QLearningSimulatorStrategy
+        if isinstance(strategy, QLearningSimulatorStrategy):
+            stats = strategy.stats
+            print("\n[*] Q-Learning Training Statistics:")
+            print(f"    Total placements     : {stats.total_placements}")
+            print(f"    Total rejections     : {stats.total_rejections}")
+            print(f"    Q-table entries      : {strategy.q_table_size}")
+            print(f"    Total Q-updates      : {stats.total_q_updates}")
+            print(f"    Cumulative reward    : {stats.cumulative_reward:.2f}")
+            print(f"    Current epsilon      : {strategy.epsilon:.4f}")
+            print("-" * 80)
+
+    print("\n[OK] Simulation complete.\n")
 
 
 if __name__ == "__main__":

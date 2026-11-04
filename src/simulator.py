@@ -5,6 +5,10 @@ Coordinates the discrete-time execution loop:
 2. Dispatching newly arriving VMs to the placement strategy under CPU/RAM constraints.
 3. Updating simulated thermal state via the analytical RC thermal model.
 4. Logging metrics and telemetry at each step.
+
+Placement strategy lifecycle hooks are called at well-defined points so that
+strategies such as Q-Learning can observe pre- and post-thermal states and
+compute reward-based updates at the correct moment.
 """
 
 from typing import Dict, List, Optional
@@ -39,9 +43,14 @@ class Simulator:
 
         Lifecycle:
         1. Tick and release departing VMs from hosts.
-        2. Attempt placement for all newly arriving VMs using the strategy.
-        3. Step thermal model forward across all racks and hosts.
-        4. Record telemetry snapshot.
+        2. Notify strategy that the step is beginning.
+        3. Attempt placement for all newly arriving VMs using the strategy.
+           After each placement attempt, notify the strategy of the outcome.
+        4. Step thermal model forward across all racks and hosts.
+        5. Notify strategy that the step has ended (post-thermal observations
+           are available here — used by Q-Learning for reward calculation and
+           Q-table updates).
+        6. Record telemetry snapshot.
 
         Args:
             time_step: Integer index of current time step.
@@ -60,21 +69,47 @@ class Simulator:
             for vm_id in finished_vm_ids:
                 host.release(vm_id)
 
-        # 2. Place arriving VMs
+        # 2. Notify strategy that a new step is beginning
+        strategy.on_step_begin(
+            time_step=time_step,
+            arriving_vms=arriving_vms,
+            datacenter=self.datacenter,
+        )
+
+        # 3. Place arriving VMs
         placed_count = 0
         rejected_count = 0
 
         for vm in arriving_vms:
             selected_host = strategy.select_host(vm, self.datacenter)
             if selected_host is not None and selected_host.allocate(vm):
+                placed = True
                 placed_count += 1
             else:
+                placed = False
+                selected_host = None
                 rejected_count += 1
 
-        # 3. Update simulated thermal dynamics
+            # Notify strategy of the outcome (pre-thermal)
+            strategy.on_placement_outcome(
+                vm=vm,
+                host=selected_host,
+                placed=placed,
+                time_step=time_step,
+                datacenter=self.datacenter,
+            )
+
+        # 4. Update simulated thermal dynamics (once per time step)
         self.thermal_model.update_datacenter(self.datacenter, dt=1.0)
 
-        # 4. Telemetry collection
+        # 5. Notify strategy that the step has ended (post-thermal)
+        strategy.on_step_end(
+            time_step=time_step,
+            datacenter=self.datacenter,
+            thermal_model=self.thermal_model,
+        )
+
+        # 6. Telemetry collection
         metrics.record_step(
             time_step=time_step,
             datacenter=self.datacenter,
@@ -117,6 +152,7 @@ class Simulator:
                 metrics=metrics,
             )
 
+        strategy.on_simulation_end(datacenter=self.datacenter)
         return metrics
 
     def reset(self, initial_temp: Optional[float] = None) -> None:
