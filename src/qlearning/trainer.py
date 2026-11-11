@@ -89,6 +89,9 @@ class TrainingConfig:
     overwrite: bool = False
     save_plots: bool = True
     save_model: bool = True
+    features: str = "cpu_ram"
+    disk_io_per_host: float = 100000.0
+    w_disk_penalty: float = 0.0
 
 
 @dataclass
@@ -107,10 +110,25 @@ class EpisodeRecord:
     avg_ram_utilization: float
     epsilon: float
     q_table_entries: int
+    avg_disk_io_utilization: float = 0.0
+    avg_disk_read_throughput: float = 0.0
+    avg_disk_write_throughput: float = 0.0
+    disk_rejected_vms: int = 0
+    disk_capacity_violations: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, include_disk: bool = True) -> Dict[str, Any]:
         """Converts episode record to dictionary for CSV formatting."""
-        return asdict(self)
+        d = asdict(self)
+        if not include_disk:
+            for k in [
+                "avg_disk_io_utilization",
+                "avg_disk_read_throughput",
+                "avg_disk_write_throughput",
+                "disk_rejected_vms",
+                "disk_capacity_violations",
+            ]:
+                d.pop(k, None)
+        return d
 
 
 class QLearningTrainer:
@@ -155,13 +173,19 @@ class QLearningTrainer:
         """Initializes datacenter topology, thermal model, agent, and strategy."""
         cfg = self.config
 
+        # Automatic subfolder routing for models when non-default feature set is selected
+        if cfg.features != "cpu_ram" and cfg.model_path == "models/qlearning/q_table.json":
+            cfg.model_path = f"models/qlearning/{cfg.features}/q_table.json"
+
         # 1. Physical Data Center
         self.datacenter = DataCenter.create_standard_datacenter(
             num_racks=cfg.racks,
             hosts_per_rack=cfg.hosts_per_rack,
             cpu_per_host=cfg.cpu_per_host,
             ram_per_host=cfg.ram_per_host,
+            disk_io_per_host=cfg.disk_io_per_host,
             initial_temperature_c=cfg.ambient_temp,
+            feature_set=cfg.features,
         )
 
         # 2. Analytical RC Thermal Model
@@ -180,7 +204,11 @@ class QLearningTrainer:
                 min_epsilon=cfg.min_epsilon,
                 epsilon_decay=cfg.epsilon_decay,
                 seed=cfg.seed,
+                feature_set=cfg.features,
             )
+        else:
+            if hasattr(self.agent, "feature_set") and not self.agent.feature_set:
+                self.agent.feature_set = cfg.features
 
         # 4. Learning Placement Strategy
         self.strategy = QLearningSimulatorStrategy(
@@ -297,6 +325,11 @@ class QLearningTrainer:
         thermal_imbalance = float(df["thermal_imbalance_std"].mean()) if not df.empty else 0.0
         avg_cpu = float(df["mean_cpu_util"].mean()) if not df.empty else 0.0
         avg_ram = float(df["mean_ram_util"].mean()) if not df.empty else 0.0
+        avg_disk_io = float(df["mean_disk_io_util"].mean()) if ("mean_disk_io_util" in df.columns and not df.empty) else 0.0
+        avg_disk_read = float(df["mean_disk_read_kbps"].mean()) if ("mean_disk_read_kbps" in df.columns and not df.empty) else 0.0
+        avg_disk_write = float(df["mean_disk_write_kbps"].mean()) if ("mean_disk_write_kbps" in df.columns and not df.empty) else 0.0
+        disk_violations = int(summary.get("disk_capacity_violations", 0))
+        disk_rejections = int(summary.get("disk_rejected_vms", 0))
         total_hotspots = int(summary.get("cumulative_hotspot_events", 0))
 
         record = EpisodeRecord(
@@ -313,6 +346,11 @@ class QLearningTrainer:
             avg_ram_utilization=round(avg_ram, 4),
             epsilon=round(current_eps, 5),
             q_table_entries=len(self.agent.q_table),
+            avg_disk_io_utilization=round(avg_disk_io, 4),
+            avg_disk_read_throughput=round(avg_disk_read, 2),
+            avg_disk_write_throughput=round(avg_disk_write, 2),
+            disk_rejected_vms=disk_rejections,
+            disk_capacity_violations=disk_violations,
         )
 
         self.history.append(record)
@@ -441,6 +479,7 @@ class QLearningTrainer:
             suffix = target_path.suffix
             target_path = target_path.parent / f"{stem}_{timestamp}{suffix}"
 
+        is_disk = getattr(self.config, "features", "cpu_ram") != "cpu_ram"
         fieldnames = [
             "episode",
             "cumulative_reward",
@@ -456,12 +495,20 @@ class QLearningTrainer:
             "epsilon",
             "q_table_entries",
         ]
+        if is_disk:
+            fieldnames.extend([
+                "avg_disk_io_utilization",
+                "avg_disk_read_throughput",
+                "avg_disk_write_throughput",
+                "disk_rejected_vms",
+                "disk_capacity_violations",
+            ])
 
         with open(target_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
             for record in self.history:
-                writer.writerow(record.to_dict())
+                writer.writerow(record.to_dict(include_disk=is_disk))
 
         return target_path
 

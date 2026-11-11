@@ -1,0 +1,2518 @@
+{
+  "version": "1.0",
+  "algorithm": "Q-Learning",
+  "feature_set": "cpu_ram",
+  "hyperparameters": {
+    "learning_rate": 0.1,
+    "discount_factor": 0.95,
+    "epsilon": 0.778312557068642,
+    "min_epsilon": 0.05,
+    "epsilon_decay": 0.995,
+    "seed": 42
+  },
+  "state_config": {
+    "vm_cpu_thresholds": [
+      2.0,
+      4.0
+    ],
+    "vm_ram_thresholds": [
+      4.0,
+      16.0
+    ],
+    "host_cpu_thresholds": [
+      0.4,
+      0.7
+    ],
+    "host_ram_thresholds": [
+      0.4,
+      0.7
+    ],
+    "host_disk_thresholds": [
+      0.4,
+      0.7
+    ],
+    "host_temp_thresholds": [
+      55.0,
+      65.0,
+      75.0
+    ],
+    "hotspot_threshold_c": 75.0,
+    "warm_threshold_c": 65.0
+  },
+  "training_metadata": {
+    "training_completed_at": "2026-11-11T23:12:23.342713",
+    "total_episodes": 50,
+    "final_epsilon": 0.778312557068642,
+    "training_config": {
+      "episodes": 50,
+      "learning_rate": 0.1,
+      "discount_factor": 0.95,
+      "initial_epsilon": 1.0,
+      "min_epsilon": 0.05,
+      "epsilon_decay": 0.995,
+      "seed": 42,
+      "dataset_dir": "dataset\\bitbrains\\fastStorage\\2013-8",
+      "max_vms": 50,
+      "steps": 100,
+      "racks": 2,
+      "hosts_per_rack": 4,
+      "cpu_per_host": 16,
+      "ram_per_host": 64,
+      "arrival_rate": 2.0,
+      "ambient_temp": 25.0,
+      "hotspot_threshold": 75.0,
+      "output_dir": "results/training",
+      "csv_filename": "training_history.csv",
+      "plots_dir": "results/training/plots",
+      "model_path": "models/qlearning/q_table.json",
+      "overwrite": false,
+      "save_plots": true,
+      "save_model": true,
+      "features": "cpu_ram",
+      "disk_io_per_host": 100000.0,
+      "w_disk_penalty": 0.0
+    },
+    "total_q_updates": 1800,
+    "total_placements": 1800,
+    "total_rejections": 700
+  },
+  "num_entries": 203,
+  "entries": [
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 5.926522261586079
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 5.02395128055147
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 5.3951522469940185
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 4.932228837249439
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 7.741391895862961
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 6.768358893393761
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 6.4978412190152115
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 5.355922941644665
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 0.9889554765844594
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 2.5951031313097257
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 1.8156077842999967
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 0.9536239835769615
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 1.8013026351774473
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 2.6384305227976586
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 1.7828646357318099
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 4.506269655931986
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 0.9527489267364951
+    },
+    {
+      "state": [
+        "LARGE",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 0.9758332824934417
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 7.962686154161567
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 8.962484367382253
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 8.518443331645033
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 8.768956377976345
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 8.204497130525116
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 8.72545186935513
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 6.75845936941248
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 6.650146694824087
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 0.9316228120194732
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 0.9400423733043015
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 0.9355523915168725
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 0.8994871527427973
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 6.8761057592190875
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 3.930421888232076
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 5.423305605470654
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 6.426324680143595
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 6.314990102562773
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 6.591501682392339
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 5.025292107525454
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 3.2488390705197494
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 1.7739308947482089
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 0.9449247569791437
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 2.530355678041842
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 0.9561164252834566
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 1.7700353604562227
+    },
+    {
+      "state": [
+        "LARGE",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 3.2500914284884996
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 0.9315656838933436
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 0.9498277561345643
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 5.755070848388771
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 4.423880312290245
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 4.374660647616386
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 1.7889363151229754
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 3.8789206523316655
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 3.2802362530346123
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 1.8221486678011185
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 0.9212241978692088
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 0.9412190908603381
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 1.7730419967009698
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 1.77120186998951
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 0.9889063242987002
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 0.957598954296099
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 8.534649491046585
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 9.007014272951869
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 8.405476425311214
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 8.701291320676033
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 9.099688530169825
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 8.828339805532133
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 9.257225937029533
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 9.470417673823137
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 1.775307833269117
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 3.8213101308091217
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 5.301722909714823
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 5.304579203559564
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 6.392507448119493
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 3.8260927380296574
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 6.426906921366509
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 4.902288163122265
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 5.695671884587998
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 0.9368012719259392
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 3.1574962366430848
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 3.210710894946855
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 0.920936436739712
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 2.6043783992739566
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 0.9284851983215365
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 0.8933106041600896
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 4.424865090776287
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 0.9528354249338206
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 8.842825830691012
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 7.209775728246075
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 8.236703430385214
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 8.230623874497567
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 7.147005611864397
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 6.611886165071027
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 9.017515360117576
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 5.79627261817855
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 0.9228065300933315
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 0.919716938618
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 2.645177709290247
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 0.958703061902504
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 0.9749446503850024
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 1.8460527239041742
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 0.9602619670585281
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 0.9967290115213889
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 1.8896285158603572
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 0.959632813551108
+    },
+    {
+      "state": [
+        "MEDIUM",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 0.9592472338472815
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 0.9232239251892106
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 2.5017798494192474
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 0.9198119569867252
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 0.9270293308491326
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 3.1574036850276395
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 5.775502447297208
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 6.947748248501231
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 6.909874098262225
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 5.258911518060552
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 5.707806062734083
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 4.881592188403094
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 5.710224607239092
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 6.043341649022098
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 4.817445342718081
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 6.44027749314627
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 3.801432550601691
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 3.1776583839805856
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 4.3527652057114965
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 6.077235335922889
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 4.843633037629114
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 6.614685218902948
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 5.626674060553718
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 4.370173703954974
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 5.745946992715489
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 3.2362995811435775
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 3.7282462294639402
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 4.850905199209806
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 6.480316149774574
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 7.5260471255048875
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 0.8477194253090732
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 0.8638012057724187
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 0.8855924706370871
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 3.785609958267381
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 5.605950555618345
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 4.770586864341813
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 3.136429209103288
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 6.02364689478747
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 4.8064713193903135
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 2.513002309637044
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 1.7227657104195147
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 0.92818085523858
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 0.9214516531659017
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 1.745081441359078
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 2.520836572478874
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 1.7118162655656177
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 3.094408756817761
+    },
+    {
+      "state": [
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 4.7532581274457435
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 0.9189319670896989
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 0.9180483420290353
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 0.9261647586356828
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 3.7479570995775657
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 1.7931233562362718
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 0.9429366236520015
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 4.78984003269821
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 6.039529497866324
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 9.193384954033666
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 8.734876446748983
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 8.621067600930726
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 8.863533266731217
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 8.389774902523131
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 7.28188300393608
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 6.979016546339538
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 6.266073502224833
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 7.704160552294566
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 7.904759716657274
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 8.156607104062113
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 6.6621651166385085
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 8.999162412816986
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 8.021565806255339
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 8.093160673249939
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "HIGH",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 8.532649122692566
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 9.231209926229061
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 7.067987427989936
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 8.82746542076649
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 7.89810149186388
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 7.465388225823698
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 8.033171956385907
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 8.374609485431739
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 6.852036333978397
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 0.9592835173248603
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 0.9185839124900519
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 3.2101530785686583
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "LOW",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 1.827870534632543
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "HIGH",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 0.8646429656029216
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 6.2222676019126775
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 5.615444518374205
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 5.651485671243286
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H3",
+      "q_value": 7.328956135669125
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 6.625731589619168
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 4.911316439481142
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 5.332488170966902
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "LOW",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 3.172831499664822
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H0",
+      "q_value": 3.1001506058495525
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H1",
+      "q_value": 3.1849271194048883
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R0_H2",
+      "q_value": 0.9199324053362661
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H0",
+      "q_value": 3.8028234331578963
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H1",
+      "q_value": 2.5279051108600967
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H2",
+      "q_value": 3.1770584094107437
+    },
+    {
+      "state": [
+        "SMALL",
+        "SMALL",
+        "MEDIUM",
+        "MEDIUM",
+        "COOL",
+        "COOL"
+      ],
+      "action": "R1_H3",
+      "q_value": 4.287573083133215
+    }
+  ]
+}

@@ -35,52 +35,87 @@ class Host:
         rack_slot: int,
         total_cpu: int = 16,
         total_ram: int = 64,
+        total_disk_io: float = 100000.0,
         idle_power_w: float = 150.0,
         max_power_w: float = 350.0,
         initial_temperature_c: float = 25.0,
+        feature_set: str = "cpu_ram",
     ):
         self.host_id = host_id
         self.rack_id = rack_id
         self.rack_slot = rack_slot
         self.total_cpu = total_cpu
         self.total_ram = total_ram
+        self.total_disk_io = float(total_disk_io)
         self.idle_power_w = idle_power_w
         self.max_power_w = max_power_w
         self.initial_temperature_c = initial_temperature_c
+        self.feature_set = feature_set
 
         self.used_cpu: int = 0
         self.used_ram: int = 0
+        self.used_disk_io: float = 0.0
+        self.used_disk_read: float = 0.0
+        self.used_disk_write: float = 0.0
         self.simulated_temperature_c: float = initial_temperature_c
         self.allocated_vms: Dict[Union[int, str], VM] = {}
 
-    def can_accommodate(self, vm: VM) -> bool:
-        """Checks whether the host has sufficient available CPU and RAM.
+    def can_accommodate(self, vm: VM, feature_set: Optional[str] = None) -> bool:
+        """Checks whether the host has sufficient available resources.
+
+        Evaluates resource dimensions based on the active feature set:
+        - 'cpu_ram': Checks CPU and RAM capacity.
+        - 'cpu_ram_disk_read': Checks CPU, RAM, and disk read throughput capacity.
+        - 'cpu_ram_disk_write': Checks CPU, RAM, and disk write throughput capacity.
+        - 'cpu_ram_disk': Checks CPU, RAM, and total disk I/O throughput capacity.
 
         Args:
             vm: Virtual Machine requesting placement.
+            feature_set: Optional feature set override. Defaults to host.feature_set.
 
         Returns:
-            True if both CPU and RAM capacity constraints are satisfied, False otherwise.
+            True if all enabled resource constraints are satisfied, False otherwise.
         """
         has_cpu = (self.used_cpu + vm.cpu_demand) <= self.total_cpu
         has_ram = (self.used_ram + vm.ram_demand) <= self.total_ram
-        return has_cpu and has_ram
+        if not (has_cpu and has_ram):
+            return False
 
-    def allocate(self, vm: VM) -> bool:
+        active_fs = feature_set if feature_set is not None else self.feature_set
+
+        if active_fs == "cpu_ram":
+            return True
+        elif active_fs == "cpu_ram_disk_read":
+            r_demand = getattr(vm, "disk_read_demand", 0.0)
+            return (self.used_disk_read + r_demand) <= self.total_disk_io
+        elif active_fs == "cpu_ram_disk_write":
+            w_demand = getattr(vm, "disk_write_demand", 0.0)
+            return (self.used_disk_write + w_demand) <= self.total_disk_io
+        elif active_fs == "cpu_ram_disk":
+            io_demand = getattr(vm, "disk_io_demand", 0.0)
+            return (self.used_disk_io + io_demand) <= self.total_disk_io
+
+        return True
+
+    def allocate(self, vm: VM, feature_set: Optional[str] = None) -> bool:
         """Allocates a VM to this host if capacity constraints allow.
 
         Args:
             vm: Virtual Machine to allocate.
+            feature_set: Optional feature set override for admission control.
 
         Returns:
             True if allocation succeeded, False if rejected due to capacity limits.
         """
-        if not self.can_accommodate(vm):
+        if not self.can_accommodate(vm, feature_set=feature_set):
             return False
 
         self.allocated_vms[vm.vm_id] = vm
         self.used_cpu += vm.cpu_demand
         self.used_ram += vm.ram_demand
+        self.used_disk_read += getattr(vm, "disk_read_demand", 0.0)
+        self.used_disk_write += getattr(vm, "disk_write_demand", 0.0)
+        self.used_disk_io += getattr(vm, "disk_io_demand", 0.0)
         return True
 
     def release(self, vm_id: Union[int, str]) -> Optional[VM]:
@@ -96,6 +131,9 @@ class Host:
             vm = self.allocated_vms.pop(vm_id)
             self.used_cpu = max(0, self.used_cpu - vm.cpu_demand)
             self.used_ram = max(0, self.used_ram - vm.ram_demand)
+            self.used_disk_read = max(0.0, self.used_disk_read - getattr(vm, "disk_read_demand", 0.0))
+            self.used_disk_write = max(0.0, self.used_disk_write - getattr(vm, "disk_write_demand", 0.0))
+            self.used_disk_io = max(0.0, self.used_disk_io - getattr(vm, "disk_io_demand", 0.0))
             return vm
         return None
 
@@ -135,6 +173,64 @@ class Host:
         """Returns remaining unallocated RAM in GB."""
         return max(0, self.total_ram - self.used_ram)
 
+    @property
+    def available_disk_io(self) -> float:
+        """Returns remaining unallocated disk I/O throughput capacity in KB/s."""
+        return max(0.0, self.total_disk_io - self.used_disk_io)
+
+    @property
+    def available_disk_read(self) -> float:
+        """Returns remaining unallocated disk read throughput capacity in KB/s."""
+        return max(0.0, self.total_disk_io - self.used_disk_read)
+
+    @property
+    def available_disk_write(self) -> float:
+        """Returns remaining unallocated disk write throughput capacity in KB/s."""
+        return max(0.0, self.total_disk_io - self.used_disk_write)
+
+    @property
+    def disk_io_utilization(self) -> float:
+        """Returns current reserved disk I/O utilization ratio in [0.0, 1.0]."""
+        if self.total_disk_io <= 0:
+            return 0.0
+        return min(1.0, max(0.0, self.used_disk_io / self.total_disk_io))
+
+    @property
+    def disk_read_utilization(self) -> float:
+        """Returns current reserved disk read throughput ratio in [0.0, 1.0]."""
+        if self.total_disk_io <= 0:
+            return 0.0
+        return min(1.0, max(0.0, self.used_disk_read / self.total_disk_io))
+
+    @property
+    def disk_write_utilization(self) -> float:
+        """Returns current reserved disk write throughput ratio in [0.0, 1.0]."""
+        if self.total_disk_io <= 0:
+            return 0.0
+        return min(1.0, max(0.0, self.used_disk_write / self.total_disk_io))
+
+    @property
+    def actual_disk_read_throughput(self) -> float:
+        """Returns sum of dynamic disk read throughput in KB/s across active VMs."""
+        return sum(vm.disk_read_throughput for vm in self.allocated_vms.values())
+
+    @property
+    def actual_disk_write_throughput(self) -> float:
+        """Returns sum of dynamic disk write throughput in KB/s across active VMs."""
+        return sum(vm.disk_write_throughput for vm in self.allocated_vms.values())
+
+    @property
+    def actual_disk_io_throughput(self) -> float:
+        """Returns sum of dynamic combined disk I/O throughput in KB/s across active VMs."""
+        return sum(vm.total_disk_io for vm in self.allocated_vms.values())
+
+    @property
+    def actual_disk_io_utilization(self) -> float:
+        """Returns dynamic disk I/O utilization ratio in [0.0, 1.0] from real trace samples."""
+        if self.total_disk_io <= 0:
+            return 0.0
+        return min(1.0, max(0.0, self.actual_disk_io_throughput / self.total_disk_io))
+
     def reset(self, initial_temp: Optional[float] = None) -> None:
         """Resets the host to its pristine initial state with zero workload.
 
@@ -144,6 +240,9 @@ class Host:
         self.allocated_vms.clear()
         self.used_cpu = 0
         self.used_ram = 0
+        self.used_disk_io = 0.0
+        self.used_disk_read = 0.0
+        self.used_disk_write = 0.0
         self.simulated_temperature_c = (
             initial_temp if initial_temp is not None else self.initial_temperature_c
         )
@@ -152,6 +251,7 @@ class Host:
         return (
             f"Host({self.host_id}, rack={self.rack_id}, slot={self.rack_slot}, "
             f"CPU={self.used_cpu}/{self.total_cpu}, RAM={self.used_ram}/{self.total_ram}GB, "
+            f"Disk={self.used_disk_io:.0f}/{self.total_disk_io:.0f}KB/s, "
             f"T_sim={self.simulated_temperature_c:.1f}°C)"
         )
 
@@ -184,6 +284,18 @@ class Rack:
     def total_used_ram(self) -> int:
         """Calculates total RAM utilized across all hosts in the rack."""
         return sum(h.used_ram for h in self.hosts)
+
+    def total_used_disk_io(self) -> float:
+        """Calculates total disk I/O throughput allocated across all hosts in the rack."""
+        return sum(h.used_disk_io for h in self.hosts)
+
+    def total_used_disk_read(self) -> float:
+        """Calculates total disk read throughput allocated across all hosts in the rack."""
+        return sum(h.used_disk_read for h in self.hosts)
+
+    def total_used_disk_write(self) -> float:
+        """Calculates total disk write throughput allocated across all hosts in the rack."""
+        return sum(h.used_disk_write for h in self.hosts)
 
     def __len__(self) -> int:
         return len(self.hosts)
@@ -232,9 +344,11 @@ class DataCenter:
         hosts_per_rack: int = 4,
         cpu_per_host: int = 16,
         ram_per_host: int = 64,
+        disk_io_per_host: float = 100000.0,
         idle_power_w: float = 150.0,
         max_power_w: float = 350.0,
         initial_temperature_c: float = 25.0,
+        feature_set: str = "cpu_ram",
     ) -> "DataCenter":
         """Factory method to instantiate a standard homogeneous data center.
 
@@ -243,9 +357,11 @@ class DataCenter:
             hosts_per_rack: Number of hosts stacked in each rack.
             cpu_per_host: CPU cores per host.
             ram_per_host: RAM capacity per host in GB.
+            disk_io_per_host: Disk I/O throughput capacity per host in KB/s.
             idle_power_w: Idle power consumption per host in Watts.
             max_power_w: Peak power consumption per host in Watts.
             initial_temperature_c: Baseline starting temperature in Celsius.
+            feature_set: Active resource feature configuration ('cpu_ram', 'cpu_ram_disk', etc.).
 
         Returns:
             Configured DataCenter instance.
@@ -260,9 +376,11 @@ class DataCenter:
                     rack_slot=h_idx,
                     total_cpu=cpu_per_host,
                     total_ram=ram_per_host,
+                    total_disk_io=disk_io_per_host,
                     idle_power_w=idle_power_w,
                     max_power_w=max_power_w,
                     initial_temperature_c=initial_temperature_c,
+                    feature_set=feature_set,
                 )
                 rack.add_host(host)
             racks.append(rack)

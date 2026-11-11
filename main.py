@@ -122,6 +122,25 @@ def parse_args(args=None):
         help="Placement strategy to use: 'first_fit' (default) or 'q_learning'",
     )
     parser.add_argument(
+        "--features",
+        type=str,
+        default="cpu_ram",
+        choices=["cpu_ram", "cpu_ram_disk_read", "cpu_ram_disk_write", "cpu_ram_disk"],
+        help="Resource feature set to use: 'cpu_ram' (default), 'cpu_ram_disk_read', 'cpu_ram_disk_write', or 'cpu_ram_disk'",
+    )
+    parser.add_argument(
+        "--disk-io-per-host",
+        type=float,
+        default=100000.0,
+        help="Disk I/O throughput capacity per host in KB/s (default: 100000.0 = 100 MB/s)",
+    )
+    parser.add_argument(
+        "--w-disk-penalty",
+        type=float,
+        default=0.0,
+        help="Reward penalty weight for excessive host disk saturation (default: 0.0)",
+    )
+    parser.add_argument(
         "--eval-mode",
         action="store_true",
         default=False,
@@ -225,15 +244,19 @@ def print_summary(summary: dict, strategy_name: str) -> None:
 def _build_strategy(parsed_args):
     """Constructs the placement strategy from CLI arguments."""
     if parsed_args.strategy == "first_fit":
-        return FirstFitPlacement()
+        return FirstFitPlacement(feature_set=parsed_args.features)
 
     # Q-Learning strategy
     from src.qlearning.agent import QLearningPlacementAgent
     from src.qlearning.strategy import QLearningSimulatorStrategy
+    from src.qlearning.reward import RewardConfig
 
     # Check if a saved Q-table is provided
     if parsed_args.q_table is not None:
-        agent = QLearningPlacementAgent.load_from_file(parsed_args.q_table)
+        agent = QLearningPlacementAgent.load_from_file(
+            parsed_args.q_table,
+            feature_set=parsed_args.features,
+        )
         print(f"[*] Loaded Q-table from: {parsed_args.q_table} ({len(agent.q_table)} entries)")
     else:
         agent = QLearningPlacementAgent(
@@ -243,6 +266,7 @@ def _build_strategy(parsed_args):
             min_epsilon=parsed_args.min_epsilon,
             epsilon_decay=parsed_args.epsilon_decay,
             seed=parsed_args.seed,
+            feature_set=parsed_args.features,
         )
 
     # In evaluation mode: force epsilon = 0.0 and freeze updates
@@ -250,8 +274,15 @@ def _build_strategy(parsed_args):
     if parsed_args.eval_mode:
         agent.epsilon = 0.0
 
+    reward_cfg = RewardConfig(
+        ambient_temp_c=parsed_args.ambient_temp,
+        hotspot_threshold_c=parsed_args.hotspot_threshold,
+        w_disk_penalty=parsed_args.w_disk_penalty,
+    )
+
     strategy = QLearningSimulatorStrategy(
         agent=agent,
+        reward_config=reward_cfg,
         training=is_training,
     )
     return strategy
@@ -267,6 +298,8 @@ def main(args=None):
     print(f"    - Total Time Steps     : {parsed_args.steps}")
     print(f"    - Data Center Topology : {parsed_args.racks} racks x {parsed_args.hosts_per_rack} hosts = {parsed_args.racks * parsed_args.hosts_per_rack} hosts")
     print(f"    - Host Physical Limits : {parsed_args.cpu_per_host} CPU cores, {parsed_args.ram_per_host} GB RAM")
+    print(f"    - Host Disk I/O Limit  : {parsed_args.disk_io_per_host:.0f} KB/s")
+    print(f"    - Resource Features    : {parsed_args.features}")
     print(f"    - Ambient Temp (CRAH)  : {parsed_args.ambient_temp:.1f} °C")
     print(f"    - Hotspot Threshold    : {parsed_args.hotspot_threshold:.1f} °C")
     print(f"    - Random Seed          : {parsed_args.seed} (deterministic arrival scheduling)")
@@ -325,6 +358,9 @@ def main(args=None):
             output_dir=parsed_args.output_dir,
             model_path=parsed_args.model_path,
             overwrite=parsed_args.overwrite,
+            features=parsed_args.features,
+            disk_io_per_host=parsed_args.disk_io_per_host,
+            w_disk_penalty=parsed_args.w_disk_penalty,
         )
         trainer = QLearningTrainer(config=train_cfg)
         trainer.train()
@@ -371,7 +407,9 @@ def main(args=None):
         hosts_per_rack=parsed_args.hosts_per_rack,
         cpu_per_host=parsed_args.cpu_per_host,
         ram_per_host=parsed_args.ram_per_host,
+        disk_io_per_host=parsed_args.disk_io_per_host,
         initial_temperature_c=parsed_args.ambient_temp,
+        feature_set=parsed_args.features,
     )
     thermal_model = ThermalModel(config=thermal_config)
 

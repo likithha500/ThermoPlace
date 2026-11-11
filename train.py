@@ -134,6 +134,25 @@ def parse_args(args=None):
         help="Hotspot safety threshold in Celsius (default: 75.0)",
     )
     parser.add_argument(
+        "--features",
+        type=str,
+        default="cpu_ram",
+        choices=["cpu_ram", "cpu_ram_disk_read", "cpu_ram_disk_write", "cpu_ram_disk"],
+        help="Resource feature set: 'cpu_ram' (default), 'cpu_ram_disk_read', 'cpu_ram_disk_write', 'cpu_ram_disk'",
+    )
+    parser.add_argument(
+        "--disk-io-per-host",
+        type=float,
+        default=100000.0,
+        help="Disk I/O throughput capacity per host in KB/s (default: 100000.0 = 100 MB/s)",
+    )
+    parser.add_argument(
+        "--w-disk-penalty",
+        type=float,
+        default=0.0,
+        help="Weight for excessive disk saturation penalty (default: 0.0)",
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default="results/training",
@@ -210,6 +229,9 @@ def main(args=None):
         overwrite=parsed.overwrite,
         save_plots=not parsed.no_plots,
         save_model=True,
+        features=parsed.features,
+        disk_io_per_host=parsed.disk_io_per_host,
+        w_disk_penalty=parsed.w_disk_penalty,
     )
 
     trainer = QLearningTrainer(config=config)

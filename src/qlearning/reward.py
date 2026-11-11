@@ -35,6 +35,8 @@ class RewardConfig:
         ambient_temp_c: Reference ambient CRAH temperature in Celsius (default: 25.0).
         hotspot_threshold_c: Critical temperature threshold defining a hotspot in Celsius (default: 75.0).
         imbalance_scale_c: Reference temperature standard deviation for normalizing imbalance delta (default: 5.0).
+        w_disk_penalty: Scaling weight for excessive disk I/O concentration penalty (default: 0.0).
+        disk_saturation_threshold: Host disk I/O utilization threshold above which penalty applies (default: 0.80).
     """
     w_success: float = 10.0
     w_util: float = 1.0
@@ -46,6 +48,8 @@ class RewardConfig:
     ambient_temp_c: float = 25.0
     hotspot_threshold_c: float = 75.0
     imbalance_scale_c: float = 5.0
+    w_disk_penalty: float = 0.0
+    disk_saturation_threshold: float = 0.80
 
 
 @dataclass
@@ -61,6 +65,8 @@ class RewardBreakdown:
     is_new_hotspot: bool
     host_temperature_c: float
     imbalance_delta: float
+    disk_penalty: float = 0.0
+    host_disk_util: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         """Converts reward breakdown to a dictionary for logging and telemetry."""
@@ -87,6 +93,7 @@ class ThermalRewardCalculator:
         is_existing_hotspot: bool = False,
         imbalance_before: float = 0.0,
         imbalance_after: float = 0.0,
+        host_disk_util: float = 0.0,
     ) -> RewardBreakdown:
         """Computes the scalar reward and component breakdown from numerical observations.
 
@@ -98,6 +105,7 @@ class ThermalRewardCalculator:
             is_existing_hotspot: Whether the host was already in a hotspot condition.
             imbalance_before: Data center temperature standard deviation before placement (°C).
             imbalance_after: Data center temperature standard deviation after placement (°C).
+            host_disk_util: Resulting host disk I/O utilization ratio in [0.0, 1.0].
 
         Returns:
             RewardBreakdown containing total reward and individual term contributions.
@@ -118,6 +126,8 @@ class ThermalRewardCalculator:
                 is_new_hotspot=False,
                 host_temperature_c=float(host_temp_c),
                 imbalance_delta=0.0,
+                disk_penalty=0.0,
+                host_disk_util=float(host_disk_util),
             )
 
         # 2. Success Reward: Base reward plus efficiency bonus
@@ -145,8 +155,17 @@ class ThermalRewardCalculator:
         normalized_imbalance_delta = imbalance_delta / imbalance_scale
         p_imbalance = cfg.w_imbalance * normalized_imbalance_delta
 
-        # Total Composite Reward: R = R_success - P_temp - P_hotspot - P_imbalance
-        total_reward = r_success - p_temp - p_hotspot - p_imbalance
+        # 6. Disk I/O Saturation Penalty
+        # Penalizes excessive disk I/O concentration above the saturation threshold
+        disk_u = min(1.0, max(0.0, float(host_disk_util)))
+        p_disk = 0.0
+        if cfg.w_disk_penalty > 0.0 and disk_u > cfg.disk_saturation_threshold:
+            denom = max(0.01, 1.0 - cfg.disk_saturation_threshold)
+            excess = (disk_u - cfg.disk_saturation_threshold) / denom
+            p_disk = float(cfg.w_disk_penalty * excess)
+
+        # Total Composite Reward: R = R_success - P_temp - P_hotspot - P_imbalance - P_disk
+        total_reward = r_success - p_temp - p_hotspot - p_imbalance - p_disk
 
         return RewardBreakdown(
             total_reward=float(total_reward),
@@ -159,6 +178,8 @@ class ThermalRewardCalculator:
             is_new_hotspot=bool(is_new_hotspot),
             host_temperature_c=float(host_temp_c),
             imbalance_delta=float(imbalance_delta),
+            disk_penalty=float(p_disk),
+            host_disk_util=float(disk_u),
         )
 
     def calculate_from_states(
@@ -189,6 +210,7 @@ class ThermalRewardCalculator:
         # Extract host telemetry
         host_temp = getattr(host, "simulated_temperature_c", self.config.ambient_temp_c)
         host_util = getattr(host, "cpu_utilization", 0.0)
+        host_disk_util = getattr(host, "disk_io_utilization", 0.0)
 
         # Extract datacenter host lists
         h_list_before = hosts_before or (datacenter_before.hosts if datacenter_before else [])
@@ -222,4 +244,5 @@ class ThermalRewardCalculator:
             is_existing_hotspot=is_existing_hotspot,
             imbalance_before=imbalance_before,
             imbalance_after=imbalance_after,
+            host_disk_util=host_disk_util,
         )

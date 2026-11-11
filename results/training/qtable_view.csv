@@ -1,0 +1,14 @@
+State,Action,Q-value
+hyperparameters,learning_rate,0.1
+hyperparameters,discount_factor,0.95
+hyperparameters,epsilon,0.9511
+hyperparameters,min_epsilon,0.05
+hyperparameters,epsilon_decay,0.995
+hyperparameters,seed,42.0
+state_config,hotspot_threshold_c,75.0
+state_config,warm_threshold_c,65.0
+training_metadata,total_episodes,10.0
+training_metadata,final_epsilon,0.9511
+training_metadata,total_q_updates,357.0
+training_metadata,total_placements,357.0
+training_metadata,total_rejections,143.0

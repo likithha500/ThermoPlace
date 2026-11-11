@@ -36,6 +36,14 @@ class StepSnapshot:
     total_power_w: float
     host_temperatures: Dict[str, float] = field(default_factory=dict)
     mean_actual_cpu_utilization: float = 0.0
+    mean_disk_io_utilization: float = 0.0
+    max_disk_io_utilization: float = 0.0
+    mean_disk_read_throughput: float = 0.0
+    mean_disk_write_throughput: float = 0.0
+    max_disk_read_throughput: float = 0.0
+    max_disk_write_throughput: float = 0.0
+    disk_capacity_violations: int = 0
+    disk_rejected_vms: int = 0
 
 
 class MetricsCollector:
@@ -48,6 +56,7 @@ class MetricsCollector:
         self.total_arrived_vms: int = 0
         self.total_placed_vms: int = 0
         self.total_rejected_vms: int = 0
+        self.total_disk_rejected_vms: int = 0
 
     def record_step(
         self,
@@ -56,6 +65,7 @@ class MetricsCollector:
         vms_arrived_this_step: int,
         vms_placed_this_step: int,
         vms_rejected_this_step: int,
+        disk_rejected_this_step: int = 0,
     ) -> StepSnapshot:
         """Captures telemetry for the current simulation time step.
 
@@ -65,6 +75,7 @@ class MetricsCollector:
             vms_arrived_this_step: Count of VMs that arrived at this step.
             vms_placed_this_step: Count of VMs successfully allocated at this step.
             vms_rejected_this_step: Count of VMs rejected due to capacity limits.
+            disk_rejected_this_step: Count of VMs rejected specifically due to disk limits.
 
         Returns:
             The recorded StepSnapshot.
@@ -72,12 +83,18 @@ class MetricsCollector:
         self.total_arrived_vms += vms_arrived_this_step
         self.total_placed_vms += vms_placed_this_step
         self.total_rejected_vms += vms_rejected_this_step
+        self.total_disk_rejected_vms += disk_rejected_this_step
 
         hosts = datacenter.hosts
         temps = np.array([h.simulated_temperature_c for h in hosts], dtype=float)
         cpu_utils = np.array([h.cpu_utilization for h in hosts], dtype=float)
         actual_cpu_utils = np.array([h.actual_cpu_utilization for h in hosts], dtype=float)
         ram_utils = np.array([h.ram_utilization for h in hosts], dtype=float)
+
+        disk_utils = np.array([h.disk_io_utilization for h in hosts], dtype=float)
+        disk_reads = np.array([h.actual_disk_read_throughput for h in hosts], dtype=float)
+        disk_writes = np.array([h.actual_disk_write_throughput for h in hosts], dtype=float)
+        disk_violations = sum(1 for h in hosts if h.used_disk_io > h.total_disk_io + 1e-6)
 
         total_active_vms = sum(len(h.allocated_vms) for h in hosts)
         total_power = sum(self.thermal_model.estimate_host_power_w(h) for h in hosts)
@@ -109,6 +126,14 @@ class MetricsCollector:
             total_power_w=float(total_power),
             host_temperatures=temp_dict,
             mean_actual_cpu_utilization=float(np.mean(actual_cpu_utils)),
+            mean_disk_io_utilization=float(np.mean(disk_utils)),
+            max_disk_io_utilization=float(np.max(disk_utils)),
+            mean_disk_read_throughput=float(np.mean(disk_reads)),
+            mean_disk_write_throughput=float(np.mean(disk_writes)),
+            max_disk_read_throughput=float(np.max(disk_reads)),
+            max_disk_write_throughput=float(np.max(disk_writes)),
+            disk_capacity_violations=int(disk_violations),
+            disk_rejected_vms=disk_rejected_this_step,
         )
 
         self.snapshots.append(snapshot)
@@ -134,6 +159,14 @@ class MetricsCollector:
                 "thermal_imbalance_range": s.thermal_imbalance_range,
                 "hotspot_count": s.hotspot_count,
                 "total_power_w": s.total_power_w,
+                "mean_disk_io_util": s.mean_disk_io_utilization,
+                "max_disk_io_util": s.max_disk_io_utilization,
+                "mean_disk_read_kbps": s.mean_disk_read_throughput,
+                "mean_disk_write_kbps": s.mean_disk_write_throughput,
+                "max_disk_read_kbps": s.max_disk_read_throughput,
+                "max_disk_write_kbps": s.max_disk_write_throughput,
+                "disk_capacity_violations": s.disk_capacity_violations,
+                "disk_rejected_vms": s.disk_rejected_vms,
             }
             rows.append(row)
         return pd.DataFrame(rows)
@@ -165,6 +198,18 @@ class MetricsCollector:
             "average_actual_cpu_utilization": float(df["mean_actual_cpu_util"].mean()),
             "average_ram_utilization": float(df["mean_ram_util"].mean()),
             "average_total_power_w": float(df["total_power_w"].mean()),
+            "average_disk_io_utilization": float(df["mean_disk_io_util"].mean()),
+            "peak_disk_io_utilization": float(df["max_disk_io_util"].max()),
+            "average_disk_read_throughput": float(df["mean_disk_read_kbps"].mean()),
+            "average_disk_write_throughput": float(df["mean_disk_write_kbps"].mean()),
+            "average_disk_read_throughput_kbps": float(df["mean_disk_read_kbps"].mean()),
+            "average_disk_write_throughput_kbps": float(df["mean_disk_write_kbps"].mean()),
+            "peak_disk_read_throughput": float(df["max_disk_read_kbps"].max()),
+            "peak_disk_write_throughput": float(df["max_disk_write_kbps"].max()),
+            "peak_disk_read_throughput_kbps": float(df["max_disk_read_kbps"].max()),
+            "peak_disk_write_throughput_kbps": float(df["max_disk_write_kbps"].max()),
+            "disk_capacity_violations": int(df["disk_capacity_violations"].sum()),
+            "disk_rejected_vms": int(self.total_disk_rejected_vms),
         }
 
     def reset(self) -> None:
@@ -173,3 +218,4 @@ class MetricsCollector:
         self.total_arrived_vms = 0
         self.total_placed_vms = 0
         self.total_rejected_vms = 0
+        self.total_disk_rejected_vms = 0

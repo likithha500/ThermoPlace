@@ -48,6 +48,8 @@ class StateDiscretizerConfig:
             < 0.40 -> 'LOW', < 0.70 -> 'MEDIUM', >= 0.70 -> 'HIGH'.
         host_ram_thresholds: Thresholds partitioning host RAM utilization ratio in [0, 1] (default: (0.40, 0.70)).
             < 0.40 -> 'LOW', < 0.70 -> 'MEDIUM', >= 0.70 -> 'HIGH'.
+        host_disk_thresholds: Thresholds partitioning host disk utilization ratio in [0, 1] (default: (0.40, 0.70)).
+            < 0.40 -> 'LOW', < 0.70 -> 'MEDIUM', >= 0.70 -> 'HIGH'.
         host_temp_thresholds: Thresholds partitioning host temperature in °C (default: (55.0, 65.0, 75.0)).
             < 55.0 -> 'COOL', < 65.0 -> 'NORMAL', < 75.0 -> 'WARM', >= 75.0 -> 'HOT'.
         hotspot_threshold_c: Temperature threshold defining critical hotspots in °C (default: 75.0).
@@ -57,6 +59,7 @@ class StateDiscretizerConfig:
     vm_ram_thresholds: Tuple[float, float] = (4.0, 16.0)
     host_cpu_thresholds: Tuple[float, float] = (0.40, 0.70)
     host_ram_thresholds: Tuple[float, float] = (0.40, 0.70)
+    host_disk_thresholds: Tuple[float, float] = (0.40, 0.70)
     host_temp_thresholds: Tuple[float, float, float] = (55.0, 65.0, 75.0)
     hotspot_threshold_c: float = 75.0
     warm_threshold_c: float = 65.0
@@ -108,6 +111,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         seed: Optional[int] = None,
         state_config: Optional[StateDiscretizerConfig] = None,
         name: str = "Q-Learning",
+        feature_set: str = "cpu_ram",
     ):
         """Initializes the Q-Learning placement agent with hyperparameters.
 
@@ -120,6 +124,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             seed: Optional integer seed for pseudo-random number generation.
             state_config: Optional discretization thresholds configuration.
             name: Human-readable name for placement strategy reports (default: 'Q-Learning').
+            feature_set: Resource feature set ('cpu_ram', 'cpu_ram_disk', etc.; default: 'cpu_ram').
         """
         super().__init__(name=name)
         self.learning_rate = learning_rate
@@ -131,6 +136,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         self.rng = random.Random(seed)
         self.state_config = state_config or StateDiscretizerConfig()
         self.q_table: QTable = QTable()
+        self.feature_set = feature_set
 
     # -------------------------------------------------------------------------
     # 1. State Discretization
@@ -146,9 +152,11 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         vm_ram: Optional[float] = None,
         host_cpu: Optional[float] = None,
         host_ram: Optional[float] = None,
+        host_disk: Optional[float] = None,
         host_temp: Optional[float] = None,
         dc_thermal: Optional[str] = None,
-    ) -> Tuple[str, str, str, str, str, str]:
+        feature_set: Optional[str] = None,
+    ) -> Tuple:
         """Discretizes continuous placement features into categorical state bins.
 
         Accepts either entity objects (VM, Host, DataCenter) or explicit numeric values.
@@ -158,13 +166,15 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         2. Incoming VM RAM requirement ('SMALL', 'MEDIUM', 'LARGE')
         3. Candidate host CPU utilization ('LOW', 'MEDIUM', 'HIGH')
         4. Candidate host RAM utilization ('LOW', 'MEDIUM', 'HIGH')
-        5. Candidate host simulated temperature ('COOL', 'NORMAL', 'HOT')
-        6. Overall datacenter thermal condition ('COOL', 'NORMAL', 'WARM', 'CRITICAL')
+        5. (Optional, if disk enabled) Candidate host disk utilization ('LOW', 'MEDIUM', 'HIGH')
+        6. Candidate host simulated temperature ('COOL', 'NORMAL', 'HOT')
+        7. Overall datacenter thermal condition ('COOL', 'NORMAL', 'WARM', 'CRITICAL')
 
         Returns:
-            6-tuple of strings representing the discrete placement state.
+            6-tuple of strings for 'cpu_ram', or 7-tuple when disk features are enabled.
         """
         cfg = self.state_config
+        active_fs = feature_set if feature_set is not None else self.feature_set
 
         # 1. Extract VM CPU requirement
         if vm_cpu is None:
@@ -264,14 +274,39 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         else:
             bin_dc_thermal = "COOL"
 
-        return (bin_vm_cpu, bin_vm_ram, bin_host_cpu, bin_host_ram, bin_host_temp, bin_dc_thermal)
+        if active_fs == "cpu_ram":
+            return (bin_vm_cpu, bin_vm_ram, bin_host_cpu, bin_host_ram, bin_host_temp, bin_dc_thermal)
+
+        # 7. Extract Candidate Host Disk utilization for disk-aware features
+        if host_disk is None:
+            if isinstance(host, Host):
+                if active_fs == "cpu_ram_disk_read":
+                    host_disk = float(host.disk_read_utilization)
+                elif active_fs == "cpu_ram_disk_write":
+                    host_disk = float(host.disk_write_utilization)
+                else:
+                    host_disk = float(host.disk_io_utilization)
+            elif isinstance(host, (int, float)):
+                host_disk = float(host)
+            else:
+                host_disk = 0.0
+
+        host_disk = min(1.0, max(0.0, float(host_disk)))
+        if host_disk < cfg.host_disk_thresholds[0]:
+            bin_host_disk = "LOW"
+        elif host_disk < cfg.host_disk_thresholds[1]:
+            bin_host_disk = "MEDIUM"
+        else:
+            bin_host_disk = "HIGH"
+
+        return (bin_vm_cpu, bin_vm_ram, bin_host_cpu, bin_host_ram, bin_host_disk, bin_host_temp, bin_dc_thermal)
 
     # -------------------------------------------------------------------------
     # 2. Eligible-Host Identification
     # -------------------------------------------------------------------------
 
     def get_eligible_hosts(self, vm: VM, datacenter: DataCenter) -> List[Host]:
-        """Identifies physical hosts with sufficient CPU and RAM capacity.
+        """Identifies physical hosts with sufficient capacity across enabled resources.
 
         Args:
             vm: Virtual Machine requesting placement.
@@ -280,7 +315,10 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         Returns:
             List of Host instances capable of accommodating the VM.
         """
-        return [host for host in datacenter.hosts if host.can_accommodate(vm)]
+        return [
+            host for host in datacenter.hosts
+            if host.can_accommodate(vm, feature_set=self.feature_set)
+        ]
 
     # -------------------------------------------------------------------------
     # 3. Q-Value Lookup & Modification
@@ -513,6 +551,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             "vm_ram_thresholds": list(cfg.vm_ram_thresholds),
             "host_cpu_thresholds": list(cfg.host_cpu_thresholds),
             "host_ram_thresholds": list(cfg.host_ram_thresholds),
+            "host_disk_thresholds": list(cfg.host_disk_thresholds),
             "host_temp_thresholds": list(cfg.host_temp_thresholds),
             "hotspot_threshold_c": float(cfg.hotspot_threshold_c),
             "warm_threshold_c": float(cfg.warm_threshold_c),
@@ -530,6 +569,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         payload = {
             "version": "1.0",
             "algorithm": "Q-Learning",
+            "feature_set": self.feature_set,
             "hyperparameters": hyperparameters,
             "state_config": state_cfg_dict,
             "training_metadata": metadata or {},
@@ -572,6 +612,13 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         if not isinstance(payload, dict) or "entries" not in payload:
             raise ValueError(f"Invalid Q-table model file format in '{file_path}'. Missing 'entries'.")
 
+        saved_features = payload.get("feature_set", "cpu_ram")
+        if validate_config and saved_features != self.feature_set:
+            raise ValueError(
+                f"Incompatible feature set in '{file_path}': "
+                f"saved='{saved_features}', agent='{self.feature_set}'"
+            )
+
         if validate_config and "state_config" in payload:
             saved_sc = payload["state_config"]
             cfg = self.state_config
@@ -592,6 +639,11 @@ class QLearningPlacementAgent(BasePlacementStrategy):
                 mismatches.append(
                     f"host_ram_thresholds (saved: {saved_sc.get('host_ram_thresholds')}, current: {cfg.host_ram_thresholds})"
                 )
+            if self.feature_set != "cpu_ram" and "host_disk_thresholds" in saved_sc:
+                if tuple(saved_sc.get("host_disk_thresholds", [])) != tuple(cfg.host_disk_thresholds):
+                    mismatches.append(
+                        f"host_disk_thresholds (saved: {saved_sc.get('host_disk_thresholds')}, current: {cfg.host_disk_thresholds})"
+                    )
             if tuple(saved_sc.get("host_temp_thresholds", [])) != tuple(cfg.host_temp_thresholds):
                 mismatches.append(
                     f"host_temp_thresholds (saved: {saved_sc.get('host_temp_thresholds')}, current: {cfg.host_temp_thresholds})"
@@ -630,12 +682,14 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         cls,
         file_path: Union[str, Path],
         validate_config: bool = True,
+        feature_set: Optional[str] = None,
     ) -> "QLearningPlacementAgent":
         """Instantiates a new QLearningPlacementAgent directly from a saved JSON model file.
 
         Args:
             file_path: Path to the JSON model file.
             validate_config: Kept for API symmetry.
+            feature_set: Optional expected feature set for compatibility check.
 
         Returns:
             Configured QLearningPlacementAgent instance with loaded Q-table.
@@ -647,6 +701,12 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         with open(path, "r", encoding="utf-8") as f:
             payload = json.load(f)
 
+        saved_features = payload.get("feature_set", "cpu_ram")
+        if feature_set is not None and validate_config and feature_set != saved_features:
+            raise ValueError(
+                f"Incompatible feature set: expected '{feature_set}', model has '{saved_features}'"
+            )
+
         state_cfg = StateDiscretizerConfig()
         if "state_config" in payload:
             sc = payload["state_config"]
@@ -655,6 +715,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
                 vm_ram_thresholds=tuple(sc.get("vm_ram_thresholds", (4.0, 16.0))),
                 host_cpu_thresholds=tuple(sc.get("host_cpu_thresholds", (0.40, 0.70))),
                 host_ram_thresholds=tuple(sc.get("host_ram_thresholds", (0.40, 0.70))),
+                host_disk_thresholds=tuple(sc.get("host_disk_thresholds", (0.40, 0.70))),
                 host_temp_thresholds=tuple(sc.get("host_temp_thresholds", (55.0, 65.0, 75.0))),
                 hotspot_threshold_c=float(sc.get("hotspot_threshold_c", 75.0)),
                 warm_threshold_c=float(sc.get("warm_threshold_c", 65.0)),
@@ -669,6 +730,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             epsilon_decay=hp.get("epsilon_decay", 0.995),
             seed=hp.get("seed", None),
             state_config=state_cfg,
+            feature_set=saved_features,
         )
 
         agent.q_table.clear()

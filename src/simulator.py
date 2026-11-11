@@ -82,7 +82,8 @@ class Simulator:
 
         for vm in arriving_vms:
             selected_host = strategy.select_host(vm, self.datacenter)
-            if selected_host is not None and selected_host.allocate(vm):
+            active_fs = getattr(strategy, "feature_set", "cpu_ram")
+            if selected_host is not None and selected_host.allocate(vm, feature_set=active_fs):
                 placed = True
                 placed_count += 1
             else:

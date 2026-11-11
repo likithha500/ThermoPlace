@@ -25,18 +25,24 @@ from src.dataset_loader import DatasetLoadReport, VMTrace
 
 logger = logging.getLogger(__name__)
 
-# Column name after stripping leading/trailing whitespace from each header token
+# Column names after stripping leading/trailing whitespace from each header token
 _CPU_USAGE_COLUMN = "CPU usage [%]"
+_TIMESTAMP_COLUMN = "Timestamp [ms]"
+_DISK_READ_COLUMN = "Disk read throughput [KB/s]"
+_DISK_WRITE_COLUMN = "Disk write throughput [KB/s]"
+_MEMORY_USAGE_COLUMN = "Memory usage [KB]"
 
 
-def _parse_bitbrains_file(file_path: Path) -> VMTrace:
+def _parse_bitbrains_file(file_path: Path, load_disk: bool = True) -> VMTrace:
     """Parses a single Bitbrains CSV trace file into a VMTrace object.
 
     Args:
         file_path: Path to a Bitbrains-format CSV file.
+        load_disk: Whether to extract disk read/write throughput columns if present.
 
     Returns:
-        VMTrace containing chronological CPU utilization samples in [0.0, 100.0].
+        VMTrace containing chronological CPU utilization samples in [0.0, 100.0]
+        and optional disk read/write throughput samples in KB/s.
 
     Raises:
         ValueError: If the file is empty, missing the CPU usage column, or all
@@ -58,23 +64,48 @@ def _parse_bitbrains_file(file_path: Path) -> VMTrace:
             f"Found: {df.columns.tolist()}"
         )
 
-    raw_series = df[_CPU_USAGE_COLUMN]
-    if raw_series.empty:
+    raw_cpu = pd.to_numeric(df[_CPU_USAGE_COLUMN], errors="coerce")
+    if raw_cpu.empty:
         raise ValueError(f"No data rows found in '{file_path.name}'.")
 
-    # Drop NaN / infinite values and convert to float
-    cleaned = pd.to_numeric(raw_series, errors="coerce").dropna()
-    cleaned = cleaned[cleaned.between(0.0, 100.0)]
+    valid_mask = raw_cpu.between(0.0, 100.0)
 
-    if cleaned.empty:
+    has_disk = (
+        load_disk
+        and (_DISK_READ_COLUMN in df.columns)
+        and (_DISK_WRITE_COLUMN in df.columns)
+    )
+
+    if has_disk:
+        raw_read = pd.to_numeric(df[_DISK_READ_COLUMN], errors="coerce")
+        raw_write = pd.to_numeric(df[_DISK_WRITE_COLUMN], errors="coerce")
+        # Ensure disk throughput values are valid numbers and non-negative
+        disk_valid = raw_read.notna() & raw_write.notna() & (raw_read >= 0.0) & (raw_write >= 0.0)
+        valid_mask = valid_mask & disk_valid
+
+    has_ts = _TIMESTAMP_COLUMN in df.columns
+    if has_ts:
+        raw_ts = pd.to_numeric(df[_TIMESTAMP_COLUMN], errors="coerce")
+        valid_mask = valid_mask & raw_ts.notna()
+
+    cleaned_df = df[valid_mask]
+    if cleaned_df.empty:
         raise ValueError(
-            f"All CPU usage values in '{file_path.name}' are invalid or out of range [0, 100]."
+            f"All CPU or disk usage values in '{file_path.name}' are invalid or out of range."
         )
+
+    cpu_samples = [float(v) for v in cleaned_df[_CPU_USAGE_COLUMN]]
+    disk_read_samples = [float(v) for v in cleaned_df[_DISK_READ_COLUMN]] if has_disk else None
+    disk_write_samples = [float(v) for v in cleaned_df[_DISK_WRITE_COLUMN]] if has_disk else None
+    timestamps = [int(v) for v in cleaned_df[_TIMESTAMP_COLUMN]] if has_ts else None
 
     return VMTrace(
         vm_id=file_path.stem,
-        cpu_samples=[float(v) for v in cleaned],
+        cpu_samples=cpu_samples,
         source_file=str(file_path),
+        disk_read_samples=disk_read_samples,
+        disk_write_samples=disk_write_samples,
+        timestamps=timestamps,
     )
 
 
@@ -99,6 +130,7 @@ class BitbrainsLoader:
         max_traces: Optional[int] = None,
         sort_files: bool = True,
         recursive: bool = True,
+        load_disk: bool = True,
     ) -> DatasetLoadReport:
         """Loads Bitbrains CSV traces from a directory tree.
 
@@ -107,6 +139,7 @@ class BitbrainsLoader:
             max_traces: Maximum number of valid traces to load (None = all).
             sort_files: Sort candidate files deterministically by name (default: True).
             recursive: Search subdirectories recursively (default: True).
+            load_disk: Whether to extract disk throughput samples if present.
 
         Returns:
             DatasetLoadReport containing valid VMTrace objects and skipped file mapping.
@@ -146,7 +179,7 @@ class BitbrainsLoader:
             if max_traces is not None and len(valid_traces) >= max_traces:
                 break
             try:
-                trace = _parse_bitbrains_file(file_path)
+                trace = _parse_bitbrains_file(file_path, load_disk=load_disk)
                 valid_traces.append(trace)
             except (ValueError, OSError) as exc:
                 self._skipped[str(file_path)] = str(exc)
@@ -173,6 +206,7 @@ class BitbrainsLoader:
         max_traces: Optional[int] = None,
         sort_files: bool = True,
         recursive: bool = True,
+        load_disk: bool = True,
     ) -> List[VMTrace]:
         """Convenience wrapper returning only the list of valid VMTrace objects."""
         return self.load_with_report(
@@ -180,6 +214,7 @@ class BitbrainsLoader:
             max_traces=max_traces,
             sort_files=sort_files,
             recursive=recursive,
+            load_disk=load_disk,
         ).valid_traces
 
 
@@ -187,6 +222,7 @@ def load_bitbrains_traces(
     directory_path: Union[str, Path],
     max_traces: Optional[int] = None,
     recursive: bool = True,
+    load_disk: bool = True,
 ) -> List[VMTrace]:
     """Module-level convenience helper to load Bitbrains traces.
 
@@ -194,6 +230,7 @@ def load_bitbrains_traces(
         directory_path: Root directory containing Bitbrains CSV files.
         max_traces: Optional cap on number of loaded traces.
         recursive: Whether to search subdirectories (default: True).
+        load_disk: Whether to extract disk throughput columns (default: True).
 
     Returns:
         List of VMTrace instances sorted numerically by VM ID.
@@ -202,5 +239,6 @@ def load_bitbrains_traces(
         directory_path=directory_path,
         max_traces=max_traces,
         recursive=recursive,
+        load_disk=load_disk,
     )
 

@@ -115,9 +115,14 @@ class QLearningSimulatorStrategy(BasePlacementStrategy):
         self.agent = agent
         self.reward_calculator = ThermalRewardCalculator(reward_config or RewardConfig())
         self.training = training
+        self.feature_set = getattr(agent, "feature_set", "cpu_ram")
         self.stats = QLearningTrainingStats()
         self.current_episode_reward: float = 0.0
         self.last_episode_reward: float = 0.0
+
+        if not training:
+            self._eval_epsilon = self.agent.epsilon
+            self.agent.epsilon = 0.0
 
         # Pending transitions buffered within a single time step
         self._pending: List[_PendingTransition] = []
@@ -143,8 +148,11 @@ class QLearningSimulatorStrategy(BasePlacementStrategy):
         """
         self.training = training
         if not training:
-            self._eval_epsilon = self.agent.epsilon  # save so it can be restored
+            if not hasattr(self, "_eval_epsilon"):
+                self._eval_epsilon = self.agent.epsilon  # save so it can be restored
             self.agent.epsilon = 0.0
+        else:
+            self.restore_training()
 
     def restore_training(self) -> None:
         """Restore saved epsilon after a temporary evaluation run."""
@@ -287,6 +295,7 @@ class QLearningSimulatorStrategy(BasePlacementStrategy):
                 # Compute reward from post-thermal observations
                 host_temp_after = trans.host.simulated_temperature_c
                 host_util = trans.host.cpu_utilization
+                host_disk_util = trans.host.disk_io_utilization
                 is_new_hotspot = (hotspots_after > trans.hotspots_before)
                 is_existing_hotspot = (
                     host_temp_after >= self.reward_calculator.config.hotspot_threshold_c
@@ -301,6 +310,7 @@ class QLearningSimulatorStrategy(BasePlacementStrategy):
                     is_existing_hotspot=is_existing_hotspot,
                     imbalance_before=trans.imbalance_before,
                     imbalance_after=imbalance_after,
+                    host_disk_util=host_disk_util,
                 )
                 reward = breakdown.total_reward
 

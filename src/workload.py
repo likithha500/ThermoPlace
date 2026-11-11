@@ -47,6 +47,13 @@ class VM:
         cpu_trace: Chronological sequence of real CPU utilization samples [%, 0.0-100.0].
         current_sample_index: Index of the current CPU utilization sample in cpu_trace.
         trace_id: Optional string identifier for the originating trace source.
+        loop_trace: Whether to loop trace cyclically when duration exceeds samples.
+        disk_read_demand: Reserved disk read throughput in KB/s.
+        disk_write_demand: Reserved disk write throughput in KB/s.
+        disk_io_demand: Reserved total disk I/O throughput in KB/s (read + write).
+        disk_read_trace: Chronological sequence of real disk read throughput samples [KB/s].
+        disk_write_trace: Chronological sequence of real disk write throughput samples [KB/s].
+        timestamps: Chronological sequence of observation timestamps (ms).
     """
     vm_id: Union[int, str]
     cpu_demand: int
@@ -58,6 +65,12 @@ class VM:
     current_sample_index: int = 0
     trace_id: Optional[str] = None
     loop_trace: bool = False
+    disk_read_demand: float = 0.0
+    disk_write_demand: float = 0.0
+    disk_io_demand: float = 0.0
+    disk_read_trace: Optional[List[float]] = None
+    disk_write_trace: Optional[List[float]] = None
+    timestamps: Optional[List[int]] = None
 
     def __post_init__(self):
         # Normalize cpu_trace if provided as a VMTrace or similar object
@@ -65,6 +78,13 @@ class VM:
             if hasattr(self.cpu_trace, "cpu_samples"):
                 if self.trace_id is None and hasattr(self.cpu_trace, "vm_id"):
                     self.trace_id = str(self.cpu_trace.vm_id)
+                # Pull disk traces from VMTrace if not explicitly provided
+                if self.disk_read_trace is None and getattr(self.cpu_trace, "disk_read_samples", None):
+                    self.disk_read_trace = [float(x) for x in self.cpu_trace.disk_read_samples]
+                if self.disk_write_trace is None and getattr(self.cpu_trace, "disk_write_samples", None):
+                    self.disk_write_trace = [float(x) for x in self.cpu_trace.disk_write_samples]
+                if self.timestamps is None and getattr(self.cpu_trace, "timestamps", None):
+                    self.timestamps = list(self.cpu_trace.timestamps)
                 self.cpu_trace = [float(x) for x in self.cpu_trace.cpu_samples]
             elif isinstance(self.cpu_trace, (list, tuple)):
                 self.cpu_trace = [float(x) for x in self.cpu_trace]
@@ -72,6 +92,26 @@ class VM:
             # If duration was not explicitly specified (or <= 0), infer from trace length
             if self.duration <= 0 and len(self.cpu_trace) > 0:
                 self.duration = len(self.cpu_trace)
+
+        if self.disk_read_trace is not None and isinstance(self.disk_read_trace, (list, tuple)):
+            self.disk_read_trace = [float(x) for x in self.disk_read_trace]
+            if self.duration <= 0 and len(self.disk_read_trace) > 0:
+                self.duration = len(self.disk_read_trace)
+
+        if self.disk_write_trace is not None and isinstance(self.disk_write_trace, (list, tuple)):
+            self.disk_write_trace = [float(x) for x in self.disk_write_trace]
+            if self.duration <= 0 and len(self.disk_write_trace) > 0:
+                self.duration = len(self.disk_write_trace)
+
+        # Baseline demands from initial trace samples if not explicitly set
+        if self.disk_read_demand == 0.0 and self.disk_read_trace and len(self.disk_read_trace) > 0:
+            self.disk_read_demand = float(self.disk_read_trace[0])
+
+        if self.disk_write_demand == 0.0 and self.disk_write_trace and len(self.disk_write_trace) > 0:
+            self.disk_write_demand = float(self.disk_write_trace[0])
+
+        if self.disk_io_demand == 0.0:
+            self.disk_io_demand = float(self.disk_read_demand + self.disk_write_demand)
 
         if self.remaining_duration == 0:
             self.remaining_duration = self.duration
@@ -103,6 +143,80 @@ class VM:
         if util is not None:
             return self.cpu_demand * (util / 100.0)
         return float(self.cpu_demand)
+
+    @property
+    def current_disk_read(self) -> Optional[float]:
+        """Returns the current disk read throughput in KB/s.
+
+        If dynamic trace attached: returns sample at current index.
+        If no trace attached: returns configured disk_read_demand.
+        """
+        if self.disk_read_trace is not None and len(self.disk_read_trace) > 0:
+            if self.loop_trace:
+                idx = self.current_sample_index % len(self.disk_read_trace)
+                return self.disk_read_trace[idx]
+            if self.current_sample_index < len(self.disk_read_trace):
+                return self.disk_read_trace[self.current_sample_index]
+            return None
+        return float(self.disk_read_demand)
+
+    @property
+    def current_disk_write(self) -> Optional[float]:
+        """Returns the current disk write throughput in KB/s.
+
+        If dynamic trace attached: returns sample at current index.
+        If no trace attached: returns configured disk_write_demand.
+        """
+        if self.disk_write_trace is not None and len(self.disk_write_trace) > 0:
+            if self.loop_trace:
+                idx = self.current_sample_index % len(self.disk_write_trace)
+                return self.disk_write_trace[idx]
+            if self.current_sample_index < len(self.disk_write_trace):
+                return self.disk_write_trace[self.current_sample_index]
+            return None
+        return float(self.disk_write_demand)
+
+    @property
+    def current_total_disk_io(self) -> float:
+        """Returns current combined disk I/O throughput in KB/s (read + write)."""
+        r = self.current_disk_read
+        w = self.current_disk_write
+        if r is None and w is None:
+            return float(self.disk_io_demand)
+        return float((r or 0.0) + (w or 0.0))
+
+    @property
+    def disk_read_throughput(self) -> float:
+        """Alias for current disk read throughput in KB/s."""
+        val = self.current_disk_read
+        return float(val) if val is not None else float(self.disk_read_demand)
+
+    @property
+    def disk_write_throughput(self) -> float:
+        """Alias for current disk write throughput in KB/s."""
+        val = self.current_disk_write
+        return float(val) if val is not None else float(self.disk_write_demand)
+
+    @property
+    def total_disk_io(self) -> float:
+        """Alias for current combined disk I/O throughput in KB/s."""
+        return self.current_total_disk_io
+
+    @property
+    def total_disk_io_demand(self) -> float:
+        """Alias for reserved disk_io_demand in KB/s."""
+        return float(self.disk_io_demand)
+
+    @property
+    def current_timestamp(self) -> Optional[int]:
+        """Returns the timestamp of the current sample observation in milliseconds."""
+        if self.timestamps and len(self.timestamps) > 0:
+            if self.loop_trace:
+                idx = self.current_sample_index % len(self.timestamps)
+                return self.timestamps[idx]
+            if self.current_sample_index < len(self.timestamps):
+                return self.timestamps[self.current_sample_index]
+        return None
 
     @property
     def has_trace(self) -> bool:
@@ -166,30 +280,46 @@ class VM:
         vm_id: Optional[Union[int, str]] = None,
         cpu_demand: int = 2,
         ram_demand: int = 4,
+        disk_io_demand: Optional[float] = None,
+        disk_read_demand: Optional[float] = None,
+        disk_write_demand: Optional[float] = None,
         arrival_time: int = 0,
         duration: Optional[int] = None,
         loop_trace: bool = False,
     ) -> "VM":
-        """Instantiates a VM backed by a CPU utilization trace.
+        """Instantiates a VM backed by a CPU and optional disk utilization trace.
 
         Args:
             trace: VMTrace instance (from dataset_loader) or a list of float utilization values.
             vm_id: Optional ID override (defaults to trace.vm_id if available, or 'vm_0').
             cpu_demand: Reserved CPU capacity units/cores for placement (default: 2).
             ram_demand: Statically reserved RAM capacity in GB for placement (default: 4).
+            disk_io_demand: Optional override for reserved total disk I/O throughput in KB/s.
+            disk_read_demand: Optional override for reserved disk read throughput in KB/s.
+            disk_write_demand: Optional override for reserved disk write throughput in KB/s.
             arrival_time: Simulation time step when VM arrives (default: 0).
             duration: Optional duration limit; defaults to len(cpu_samples).
             loop_trace: Whether to cycle the trace continuously when duration exceeds samples.
 
         Returns:
-            Initialized VM instance with attached CPU trace.
+            Initialized VM instance with attached CPU and disk traces.
         """
         trace_id = None
+        disk_read_samples = None
+        disk_write_samples = None
+        timestamps = None
+
         if hasattr(trace, "cpu_samples"):
             samples = list(trace.cpu_samples)
             trace_id = str(trace.vm_id)
             if vm_id is None:
                 vm_id = trace.vm_id
+            if getattr(trace, "disk_read_samples", None) is not None:
+                disk_read_samples = [float(x) for x in trace.disk_read_samples]
+            if getattr(trace, "disk_write_samples", None) is not None:
+                disk_write_samples = [float(x) for x in trace.disk_write_samples]
+            if getattr(trace, "timestamps", None) is not None:
+                timestamps = list(trace.timestamps)
         else:
             samples = [float(s) for s in trace]
 
@@ -198,6 +328,10 @@ class VM:
 
         trace_len = len(samples)
         dur = duration if duration is not None and duration > 0 else trace_len
+
+        r_demand = disk_read_demand if disk_read_demand is not None else 0.0
+        w_demand = disk_write_demand if disk_write_demand is not None else 0.0
+        io_demand = disk_io_demand if disk_io_demand is not None else 0.0
 
         return cls(
             vm_id=vm_id,
@@ -210,6 +344,12 @@ class VM:
             current_sample_index=0,
             trace_id=trace_id,
             loop_trace=loop_trace,
+            disk_read_demand=r_demand,
+            disk_write_demand=w_demand,
+            disk_io_demand=io_demand,
+            disk_read_trace=disk_read_samples,
+            disk_write_trace=disk_write_samples,
+            timestamps=timestamps,
         )
 
 
@@ -229,6 +369,7 @@ class WorkloadGenerator:
         ram_options: Optional[List[int]] = None,
         duration_min: int = 5,
         duration_max: int = 25,
+        disk_options: Optional[List[float]] = None,
     ):
         """Initializes the workload generator.
 
@@ -240,6 +381,7 @@ class WorkloadGenerator:
             ram_options: List of possible RAM demands in GB (default: [2, 4, 8, 16]).
             duration_min: Minimum duration in time steps.
             duration_max: Maximum duration in time steps.
+            disk_options: Optional list of disk I/O demands in KB/s.
         """
         self.seed = seed
         self.total_time_steps = total_time_steps
@@ -248,6 +390,7 @@ class WorkloadGenerator:
         self.ram_options = ram_options or [2, 4, 8, 16]
         self.duration_min = duration_min
         self.duration_max = duration_max
+        self.disk_options = disk_options
 
     def generate_workload(self) -> List[VM]:
         """Generates a complete list of VM requests across all time steps.
@@ -266,6 +409,15 @@ class WorkloadGenerator:
                 ram = int(rng.choice(self.ram_options))
                 duration = int(rng.integers(self.duration_min, self.duration_max + 1))
 
+                if self.disk_options:
+                    disk_io = float(rng.choice(self.disk_options))
+                    disk_read = float(round(disk_io * 0.4, 2))
+                    disk_write = float(round(disk_io * 0.6, 2))
+                else:
+                    disk_read = float(cpu * 2000.0)
+                    disk_write = float(cpu * 3000.0)
+                    disk_io = float(disk_read + disk_write)
+
                 vm = VM(
                     vm_id=vm_counter,
                     cpu_demand=cpu,
@@ -273,6 +425,9 @@ class WorkloadGenerator:
                     arrival_time=t,
                     duration=duration,
                     remaining_duration=duration,
+                    disk_read_demand=disk_read,
+                    disk_write_demand=disk_write,
+                    disk_io_demand=disk_io,
                 )
                 vms.append(vm)
                 vm_counter += 1
