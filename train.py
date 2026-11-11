@@ -1,6 +1,6 @@
 """Dedicated training CLI entrypoint for ThermoPlace Q-Learning Agent.
 
-Executes multi-episode tabular Q-Learning training driven by real Bitbrains CPU traces
+Executes multi-episode tabular Q-Learning training driven by real Bitbrains or PlanetLab CPU traces
 or synthetic workloads, logging performance metrics to CSV, generating progress plots,
 and serializing the learned Q-table.
 
@@ -33,7 +33,14 @@ def parse_args(args=None):
         "--dataset-dir",
         type=str,
         default="dataset/bitbrains/fastStorage/2013-8",
-        help="Path to Bitbrains dataset directory (default: dataset/bitbrains/fastStorage/2013-8)",
+        help="Path to dataset directory. Bitbrains: dataset/bitbrains/fastStorage/2013-8; PlanetLab: data/planetlab/20110303 (default: dataset/bitbrains/fastStorage/2013-8)",
+    )
+    parser.add_argument(
+        "--dataset-type",
+        type=str,
+        default="bitbrains",
+        choices=["bitbrains", "planetlab"],
+        help="Dataset loader: 'bitbrains' (default) or 'planetlab'",
     )
     parser.add_argument(
         "--episodes",
@@ -193,6 +200,7 @@ def main(args=None):
         initial_epsilon=parsed.initial_epsilon,
         min_epsilon=parsed.min_epsilon,
         epsilon_decay=parsed.epsilon_decay,
+        dataset_type=parsed.dataset_type,
         seed=parsed.seed,
         dataset_dir=str(dataset_path) if dataset_path else None,
         max_vms=parsed.max_vms,

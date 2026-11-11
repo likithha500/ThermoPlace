@@ -1,7 +1,13 @@
 """Main entry point for ThermoPlace — Thermal-Aware VM Scheduling Simulator.
 
 Provides command-line interface for running thermal-aware VM placement simulations
-using the Bitbrains GWA-T-12 dataset and either the First Fit or Q-Learning strategy.
+using either the Bitbrains GWA-T-12 dataset or the PlanetLab workload traces,
+with either the First Fit or Q-Learning placement strategy.
+
+Supported dataset types
+-----------------------
+  ``--dataset-type bitbrains``   -- Bitbrains GWA-T-12 CSV traces (default).
+  ``--dataset-type planetlab``   -- PlanetLab CPU utilization plain-text traces.
 
 Supported strategies
 --------------------
@@ -52,7 +58,14 @@ def parse_args(args=None):
         "--dataset-dir",
         type=str,
         default=None,
-        help="Path to Bitbrains dataset directory (e.g. dataset/bitbrains/fastStorage/2013-8)",
+        help="Path to dataset directory. Bitbrains: dataset/bitbrains/fastStorage/2013-8; PlanetLab: data/planetlab/20110303",
+    )
+    parser.add_argument(
+        "--dataset-type",
+        type=str,
+        default="bitbrains",
+        choices=["bitbrains", "planetlab"],
+        help="Dataset loader: 'bitbrains' (default) or 'planetlab'",
     )
     parser.add_argument(
         "--max-vms",
@@ -263,6 +276,7 @@ def main(args=None):
 
     print("[*] Simulation Configuration:")
     print(f"    - Dataset Directory    : {parsed_args.dataset_dir}")
+    print(f"    - Dataset Type         : {parsed_args.dataset_type}")
     print(f"    - Max VM Traces        : {parsed_args.max_vms if parsed_args.max_vms > 0 else 'All'}")
     print(f"    - Total Time Steps     : {parsed_args.steps}")
     print(f"    - Data Center Topology : {parsed_args.racks} racks x {parsed_args.hosts_per_rack} hosts = {parsed_args.racks * parsed_args.hosts_per_rack} hosts")
@@ -286,7 +300,8 @@ def main(args=None):
         print(
             "\n[ERROR] No dataset directory specified.\n"
             "Please provide a path via --dataset-dir.\n"
-            "Example: python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8",
+            "Bitbrains: python main.py --dataset-dir dataset/bitbrains/fastStorage/2013-8\n"
+            "PlanetLab: python main.py --dataset-dir data/planetlab/20110303 --dataset-type planetlab",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -306,6 +321,7 @@ def main(args=None):
         num_episodes = parsed_args.episodes if parsed_args.episodes > 1 else 500
         train_cfg = TrainingConfig(
             episodes=num_episodes,
+            dataset_type=parsed_args.dataset_type,
             learning_rate=parsed_args.learning_rate,
             discount_factor=parsed_args.discount_factor,
             initial_epsilon=parsed_args.initial_epsilon,
@@ -330,11 +346,16 @@ def main(args=None):
         trainer.train()
         return
 
-    # Load Bitbrains traces for single-run simulation
-    print(f"\n[*] Loading Bitbrains traces from: {dataset_path}")
+    # Load dataset traces for single-run simulation
+    dataset_type = parsed_args.dataset_type
+    print(f"\n[*] Loading {dataset_type} traces from: {dataset_path}")
     try:
-        from src.bitbrains_loader import BitbrainsLoader
-        loader = BitbrainsLoader()
+        if dataset_type == "planetlab":
+            from src.planetlab_loader import PlanetLabLoader
+            loader = PlanetLabLoader()
+        else:
+            from src.bitbrains_loader import BitbrainsLoader
+            loader = BitbrainsLoader()
         max_traces = parsed_args.max_vms if parsed_args.max_vms > 0 else None
         report = loader.load_with_report(
             directory_path=dataset_path,

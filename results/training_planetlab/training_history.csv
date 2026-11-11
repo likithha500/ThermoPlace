@@ -1,0 +1,4 @@
+episode,cumulative_reward,avg_reward_per_decision,successful_placements,rejected_vms,total_hotspots,max_host_temperature,avg_host_temperature,thermal_imbalance,avg_cpu_utilization,avg_ram_utilization,epsilon,q_table_entries
+1,189.8903,9.4945,20,0,0,58.97,46.63,2.5635,0.5974,0.2828,0.995,20
+2,189.0441,9.4522,20,0,0,57.63,46.63,2.5019,0.5974,0.2828,0.99003,32
+3,189.6001,9.48,20,0,0,57.7,46.63,2.4188,0.5974,0.2828,0.98507,48

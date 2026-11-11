@@ -45,7 +45,8 @@ class TrainingConfig:
         min_epsilon: Minimum exploration floor (default: 0.05).
         epsilon_decay: Multiplicative decay factor per episode (default: 0.995).
         seed: Random seed for arrival scheduling, flavors, and agent exploration (default: 42).
-        dataset_dir: Path to Bitbrains dataset directory (e.g. dataset/bitbrains/fastStorage/2013-8).
+        dataset_dir: Path to dataset directory. Used with dataset_type to select the loader.
+        dataset_type: Dataset loader to use: 'bitbrains' (default) or 'planetlab'.
         max_vms: Maximum number of VM traces to load from dataset (default: 50).
         steps: Total discrete simulation time steps per episode (default: 100).
         racks: Number of server racks in the data center (default: 2).
@@ -72,6 +73,7 @@ class TrainingConfig:
     seed: int = 42
 
     dataset_dir: Optional[str] = None
+    dataset_type: str = "bitbrains"
     max_vms: int = 50
     steps: int = 100
     racks: int = 2
@@ -198,7 +200,7 @@ class QLearningTrainer:
         # 6. Workload Generator if not provided and dataset_dir specified
         if self.workload_generator is None and self._prebuilt_schedule is None:
             if cfg.dataset_dir is not None:
-                self._load_bitbrains_workload(cfg.dataset_dir)
+                self._load_dataset_workload(cfg.dataset_dir, cfg.dataset_type)
             else:
                 # Default synthetic workload for testing/fallback
                 self.workload_generator = WorkloadGenerator(
@@ -207,18 +209,30 @@ class QLearningTrainer:
                     arrival_rate_lambda=cfg.arrival_rate,
                 )
 
-    def _load_bitbrains_workload(self, dataset_dir: Union[str, Path]) -> None:
-        """Loads Bitbrains traces and initializes TraceWorkloadGenerator."""
-        from src.bitbrains_loader import BitbrainsLoader
+    def _load_dataset_workload(self, dataset_dir: Union[str, Path], dataset_type: str = "bitbrains") -> None:
+        """Loads traces from the specified dataset and initializes TraceWorkloadGenerator.
 
-        loader = BitbrainsLoader()
+        Args:
+            dataset_dir: Path to the dataset directory.
+            dataset_type: Which loader to use — 'bitbrains' (default) or 'planetlab'.
+        """
+        dtype = dataset_type.lower().strip()
+        if dtype == "planetlab":
+            from src.planetlab_loader import PlanetLabLoader
+            loader: Union[PlanetLabLoader, "BitbrainsLoader"] = PlanetLabLoader()
+            loader_label = "PlanetLab"
+        else:
+            from src.bitbrains_loader import BitbrainsLoader
+            loader = BitbrainsLoader()
+            loader_label = "Bitbrains"
+
         report = loader.load_with_report(
             directory_path=dataset_dir,
             max_traces=self.config.max_vms if self.config.max_vms > 0 else None,
             recursive=True,
         )
         if report.total_loaded == 0:
-            raise ValueError(f"No valid Bitbrains traces found in '{dataset_dir}'.")
+            raise ValueError(f"No valid {loader_label} traces found in '{dataset_dir}'.")
 
         self.workload_generator = TraceWorkloadGenerator(
             traces=report.valid_traces,
@@ -226,6 +240,10 @@ class QLearningTrainer:
             max_arrival_time=self.config.steps,
             seed=self.config.seed,
         )
+
+    def _load_bitbrains_workload(self, dataset_dir: Union[str, Path]) -> None:
+        """Legacy alias for Bitbrains loading; delegates to _load_dataset_workload."""
+        self._load_dataset_workload(dataset_dir, dataset_type="bitbrains")
 
     def get_episode_schedule(self) -> Dict[int, List[VM]]:
         """Provides a freshly reset or generated workload schedule for an episode.
