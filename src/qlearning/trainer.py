@@ -82,7 +82,7 @@ class TrainingConfig:
     ambient_temp: float = 25.0
     hotspot_threshold: float = 75.0
 
-    state_mode: str = "B1"
+    state_mode: str = "B2"
 
     output_dir: str = "results/training"
     csv_filename: str = "training_history.csv"

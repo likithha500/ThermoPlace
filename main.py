@@ -124,9 +124,9 @@ def parse_args(args=None):
     parser.add_argument(
         "--state-mode",
         type=str,
-        default="B1",
-        choices=["B1", "standard"],
-        help="Q-Learning state representation mode: 'B1' (CPU-only 4-tuple, default) or 'standard' (6-tuple)",
+        default="B2",
+        choices=["B1", "B2", "standard"],
+        help="Q-Learning state representation mode: 'B2' (CPU+Memory 6-tuple, default), 'B1' (CPU-only 4-tuple), or 'standard'",
     )
     parser.add_argument(
         "--eval-mode",

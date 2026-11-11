@@ -61,6 +61,7 @@ class StateDiscretizerConfig:
     hotspot_threshold_c: float = 75.0
     warm_threshold_c: float = 65.0
     vm_cpu_util_thresholds: Tuple[float, float] = (33.33, 66.67)
+    vm_ram_kb_thresholds: Tuple[float, float] = (4194304.0, 16777216.0)
 
 
 class QTable(dict):
@@ -179,12 +180,12 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         if state_mode is not None:
             active_mode = state_mode.upper()
         elif vm_ram is not None or host_ram is not None:
-            active_mode = "STANDARD"
+            active_mode = "STANDARD" if self.state_mode.upper() == "STANDARD" else self.state_mode.upper()
         else:
             active_mode = self.state_mode.upper()
 
         # 1. Extract VM CPU requirement
-        if active_mode == "B1":
+        if active_mode in ("B1", "B2"):
             if vm_cpu is not None:
                 vm_cpu_val = float(vm_cpu)
             elif isinstance(vm, VM):
@@ -276,18 +277,25 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         if active_mode == "B1":
             return (bin_vm_cpu, bin_host_cpu, bin_host_temp, bin_dc_thermal)
 
-        # Legacy 6-tuple mode includes VM RAM and Host RAM
-        if vm_ram is None:
-            if isinstance(vm, VM):
-                vm_ram = float(vm.ram_demand)
-            elif isinstance(vm, (int, float)):
-                vm_ram = float(vm)
+        # 5. Extract VM RAM requirement
+        if vm_ram is not None:
+            val = float(vm_ram)
+            # If val > 1024.0, it is in KB; convert to GB (1 GB = 1,048,576 KB)
+            vm_ram_gb = (val / 1048576.0) if val > 1024.0 else val
+        elif isinstance(vm, VM):
+            if active_mode == "B2" and vm.current_memory_usage_kb is not None:
+                vm_ram_gb = vm.current_memory_usage_kb / 1048576.0
             else:
-                vm_ram = 0.0
+                vm_ram_gb = float(vm.ram_demand)
+        elif isinstance(vm, (int, float)):
+            val = float(vm)
+            vm_ram_gb = (val / 1048576.0) if val > 1024.0 else val
+        else:
+            vm_ram_gb = 0.0
 
-        if vm_ram <= cfg.vm_ram_thresholds[0]:
+        if vm_ram_gb <= cfg.vm_ram_thresholds[0]:
             bin_vm_ram = "SMALL"
-        elif vm_ram <= cfg.vm_ram_thresholds[1]:
+        elif vm_ram_gb <= cfg.vm_ram_thresholds[1]:
             bin_vm_ram = "MEDIUM"
         else:
             bin_vm_ram = "LARGE"
@@ -337,6 +345,40 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             host_temp=host_temp,
             dc_thermal=dc_thermal,
             state_mode="B1",
+        )
+
+    def discretize_state_b2(
+        self,
+        vm: Optional[Union[VM, int, float]] = None,
+        host: Optional[Union[Host, float]] = None,
+        datacenter: Optional[DataCenter] = None,
+        *,
+        vm_cpu: Optional[float] = None,
+        vm_ram: Optional[float] = None,
+        host_cpu: Optional[float] = None,
+        host_ram: Optional[float] = None,
+        host_temp: Optional[float] = None,
+        dc_thermal: Optional[str] = None,
+    ) -> Tuple[str, str, str, str, str, str]:
+        """Discretizes placement state for Experiment B2 (CPU + Memory thermal-aware).
+
+        State representation:
+            S_B2 = (VM_CPU, VM_RAM, HOST_CPU, HOST_RAM, HOST_TEMP, DATACENTER_THERMAL_STATE)
+
+        Returns:
+            6-tuple: (VM_CPU, VM_RAM, HOST_CPU, HOST_RAM, HOST_TEMP, DATACENTER_THERMAL_STATE).
+        """
+        return self.discretize_state(
+            vm=vm,
+            host=host,
+            datacenter=datacenter,
+            vm_cpu=vm_cpu,
+            vm_ram=vm_ram,
+            host_cpu=host_cpu,
+            host_ram=host_ram,
+            host_temp=host_temp,
+            dc_thermal=dc_thermal,
+            state_mode="B2",
         )
 
     # -------------------------------------------------------------------------
@@ -585,6 +627,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             "vm_cpu_thresholds": list(cfg.vm_cpu_thresholds),
             "vm_cpu_util_thresholds": list(cfg.vm_cpu_util_thresholds),
             "vm_ram_thresholds": list(cfg.vm_ram_thresholds),
+            "vm_ram_kb_thresholds": list(cfg.vm_ram_kb_thresholds),
             "host_cpu_thresholds": list(cfg.host_cpu_thresholds),
             "host_ram_thresholds": list(cfg.host_ram_thresholds),
             "host_temp_thresholds": list(cfg.host_temp_thresholds),
@@ -733,6 +776,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
                 vm_cpu_thresholds=tuple(sc.get("vm_cpu_thresholds", (2.0, 4.0))),
                 vm_cpu_util_thresholds=tuple(sc.get("vm_cpu_util_thresholds", (33.33, 66.67))),
                 vm_ram_thresholds=tuple(sc.get("vm_ram_thresholds", (4.0, 16.0))),
+                vm_ram_kb_thresholds=tuple(sc.get("vm_ram_kb_thresholds", (4194304.0, 16777216.0))),
                 host_cpu_thresholds=tuple(sc.get("host_cpu_thresholds", (0.40, 0.70))),
                 host_ram_thresholds=tuple(sc.get("host_ram_thresholds", (0.40, 0.70))),
                 host_temp_thresholds=tuple(sc.get("host_temp_thresholds", (55.0, 65.0, 75.0))),

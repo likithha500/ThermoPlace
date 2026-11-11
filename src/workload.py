@@ -69,6 +69,7 @@ class VM:
     network_rx_kbps: Optional[float] = None
     network_tx_kbps: Optional[float] = None
     memory_usage_trace: Optional[List[float]] = None
+    memory_provisioned_trace: Optional[List[float]] = None
     disk_read_trace: Optional[List[float]] = None
     disk_write_trace: Optional[List[float]] = None
     network_rx_trace: Optional[List[float]] = None
@@ -131,6 +132,30 @@ class VM:
             idx = (self.current_sample_index % len(self.memory_usage_trace)) if self.loop_trace else min(self.current_sample_index, len(self.memory_usage_trace) - 1)
             return self.memory_usage_trace[idx]
         return self.memory_usage_kb
+
+    @property
+    def current_memory_usage_gb(self) -> Optional[float]:
+        """Returns current memory usage converted from KB to GB (1 GB = 1,048,576 KB)."""
+        kb = self.current_memory_usage_kb
+        if kb is not None:
+            return kb / 1048576.0
+        return float(self.ram_demand)
+
+    @property
+    def current_memory_provisioned_kb(self) -> Optional[float]:
+        """Returns provisioned memory capacity in KB if available."""
+        if self.memory_provisioned_trace and len(self.memory_provisioned_trace) > 0:
+            idx = (self.current_sample_index % len(self.memory_provisioned_trace)) if self.loop_trace else min(self.current_sample_index, len(self.memory_provisioned_trace) - 1)
+            return self.memory_provisioned_trace[idx]
+        return self.memory_provisioned_kb
+
+    @property
+    def current_memory_provisioned_gb(self) -> Optional[float]:
+        """Returns provisioned memory capacity converted from KB to GB."""
+        kb = self.current_memory_provisioned_kb
+        if kb is not None:
+            return kb / 1048576.0
+        return float(self.ram_demand)
 
     @property
     def current_disk_read_kbps(self) -> Optional[float]:
@@ -256,7 +281,10 @@ class VM:
             loop_trace=loop_trace,
             cpu_cores=getattr(trace, "cpu_cores", None),
             cpu_capacity_provisioned_mhz=getattr(trace, "cpu_capacity_provisioned_mhz", None),
+            memory_provisioned_kb=getattr(trace, "memory_provisioned_kb", None)[0] if (getattr(trace, "memory_provisioned_kb", None) and len(trace.memory_provisioned_kb) > 0) else None,
+            memory_usage_kb=getattr(trace, "memory_usage_kb", None)[0] if (getattr(trace, "memory_usage_kb", None) and len(trace.memory_usage_kb) > 0) else None,
             memory_usage_trace=getattr(trace, "memory_usage_kb", None),
+            memory_provisioned_trace=getattr(trace, "memory_provisioned_kb", None),
             disk_read_trace=getattr(trace, "disk_read_kbps", None),
             disk_write_trace=getattr(trace, "disk_write_kbps", None),
             network_rx_trace=getattr(trace, "network_rx_kbps", None),

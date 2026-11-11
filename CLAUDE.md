@@ -58,6 +58,8 @@ This project uses [GuardLink](https://guardlink.bugb.io) annotations in source c
 - User -> CLI via parse_args
 - ExperimentB1 -> FileSystem via CSV
 - User -> CLI via parse_args
+- ExperimentB2 -> FileSystem via CSV
+- User -> CLI via parse_args
 - User -> CLI via parse_args
 - QLearningPlacementAgent -> FileSystem via JSON
 - FileSystem -> QLearningPlacementAgent via JSON
@@ -66,13 +68,15 @@ This project uses [GuardLink](https://guardlink.bugb.io) annotations in source c
 
 ### Model Stats
 
-18 annotations, 0 assets, 0 threats, 1 controls, 0 exposures, 0 mitigations, 8 flows
+22 annotations, 0 assets, 0 threats, 1 controls, 0 exposures, 0 mitigations, 10 flows
 
 > **Note:** This section is auto-generated. Run `guardlink sync` to update after code changes.
 > Any coding agent (Cursor, Claude, Copilot, Windsurf, etc.) should reference these IDs
 > and continue annotating new code using the same threat model vocabulary.
 
 <!-- guardlink:end -->
+
+
 
 
 

@@ -49,6 +49,8 @@ Every time you write or modify code that touches security-relevant behavior, you
 - User -> CLI via parse_args
 - ExperimentB1 -> FileSystem via CSV
 - User -> CLI via parse_args
+- ExperimentB2 -> FileSystem via CSV
+- User -> CLI via parse_args
 - User -> CLI via parse_args
 - QLearningPlacementAgent -> FileSystem via JSON
 - FileSystem -> QLearningPlacementAgent via JSON
@@ -57,4 +59,4 @@ Every time you write or modify code that touches security-relevant behavior, you
 
 ### Model Stats
 
-18 annotations, 0 assets, 0 threats, 1 controls, 0 exposures, 0 mitigations, 8 flows
+22 annotations, 0 assets, 0 threats, 1 controls, 0 exposures, 0 mitigations, 10 flows
