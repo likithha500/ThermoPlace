@@ -58,6 +58,21 @@ class VM:
     current_sample_index: int = 0
     trace_id: Optional[str] = None
     loop_trace: bool = False
+    # Additional dataset parameters (retained for metadata/reporting, excluded from B1 RL state)
+    cpu_cores: Optional[int] = None
+    cpu_capacity_provisioned_mhz: Optional[float] = None
+    cpu_usage_mhz: Optional[float] = None
+    memory_provisioned_kb: Optional[float] = None
+    memory_usage_kb: Optional[float] = None
+    disk_read_kbps: Optional[float] = None
+    disk_write_kbps: Optional[float] = None
+    network_rx_kbps: Optional[float] = None
+    network_tx_kbps: Optional[float] = None
+    memory_usage_trace: Optional[List[float]] = None
+    disk_read_trace: Optional[List[float]] = None
+    disk_write_trace: Optional[List[float]] = None
+    network_rx_trace: Optional[List[float]] = None
+    network_tx_trace: Optional[List[float]] = None
 
     def __post_init__(self):
         # Normalize cpu_trace if provided as a VMTrace or similar object
@@ -93,6 +108,11 @@ class VM:
         return None
 
     @property
+    def cpu_usage_percent(self) -> Optional[List[float]]:
+        """Alias for cpu_trace storing chronological CPU usage percentage samples."""
+        return self.cpu_trace
+
+    @property
     def current_actual_cpu(self) -> float:
         """Returns the actual CPU capacity units/cores utilized at current time step.
 
@@ -103,6 +123,30 @@ class VM:
         if util is not None:
             return self.cpu_demand * (util / 100.0)
         return float(self.cpu_demand)
+
+    @property
+    def current_memory_usage_kb(self) -> Optional[float]:
+        """Returns current memory usage in KB if available (for reporting/validation)."""
+        if self.memory_usage_trace and len(self.memory_usage_trace) > 0:
+            idx = (self.current_sample_index % len(self.memory_usage_trace)) if self.loop_trace else min(self.current_sample_index, len(self.memory_usage_trace) - 1)
+            return self.memory_usage_trace[idx]
+        return self.memory_usage_kb
+
+    @property
+    def current_disk_read_kbps(self) -> Optional[float]:
+        """Returns current disk read throughput in KB/s if available."""
+        if self.disk_read_trace and len(self.disk_read_trace) > 0:
+            idx = (self.current_sample_index % len(self.disk_read_trace)) if self.loop_trace else min(self.current_sample_index, len(self.disk_read_trace) - 1)
+            return self.disk_read_trace[idx]
+        return self.disk_read_kbps
+
+    @property
+    def current_network_rx_kbps(self) -> Optional[float]:
+        """Returns current network received throughput in KB/s if available."""
+        if self.network_rx_trace and len(self.network_rx_trace) > 0:
+            idx = (self.current_sample_index % len(self.network_rx_trace)) if self.loop_trace else min(self.current_sample_index, len(self.network_rx_trace) - 1)
+            return self.network_rx_trace[idx]
+        return self.network_rx_kbps
 
     @property
     def has_trace(self) -> bool:
@@ -210,6 +254,13 @@ class VM:
             current_sample_index=0,
             trace_id=trace_id,
             loop_trace=loop_trace,
+            cpu_cores=getattr(trace, "cpu_cores", None),
+            cpu_capacity_provisioned_mhz=getattr(trace, "cpu_capacity_provisioned_mhz", None),
+            memory_usage_trace=getattr(trace, "memory_usage_kb", None),
+            disk_read_trace=getattr(trace, "disk_read_kbps", None),
+            disk_write_trace=getattr(trace, "disk_write_kbps", None),
+            network_rx_trace=getattr(trace, "network_rx_kbps", None),
+            network_tx_trace=getattr(trace, "network_tx_kbps", None),
         )
 
 

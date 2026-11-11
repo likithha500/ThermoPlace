@@ -60,6 +60,7 @@ class StateDiscretizerConfig:
     host_temp_thresholds: Tuple[float, float, float] = (55.0, 65.0, 75.0)
     hotspot_threshold_c: float = 75.0
     warm_threshold_c: float = 65.0
+    vm_cpu_util_thresholds: Tuple[float, float] = (33.33, 66.67)
 
 
 class QTable(dict):
@@ -108,6 +109,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         seed: Optional[int] = None,
         state_config: Optional[StateDiscretizerConfig] = None,
         name: str = "Q-Learning",
+        state_mode: str = "standard",
     ):
         """Initializes the Q-Learning placement agent with hyperparameters.
 
@@ -120,6 +122,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             seed: Optional integer seed for pseudo-random number generation.
             state_config: Optional discretization thresholds configuration.
             name: Human-readable name for placement strategy reports (default: 'Q-Learning').
+            state_mode: State representation format: 'B1' (4-tuple CPU-only) or 'standard'/'legacy' (6-tuple).
         """
         super().__init__(name=name)
         self.learning_rate = learning_rate
@@ -130,6 +133,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         self.seed = seed
         self.rng = random.Random(seed)
         self.state_config = state_config or StateDiscretizerConfig()
+        self.state_mode = state_mode
         self.q_table: QTable = QTable()
 
     # -------------------------------------------------------------------------
@@ -148,57 +152,77 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         host_ram: Optional[float] = None,
         host_temp: Optional[float] = None,
         dc_thermal: Optional[str] = None,
-    ) -> Tuple[str, str, str, str, str, str]:
+        state_mode: Optional[str] = None,
+    ) -> Tuple[str, ...]:
         """Discretizes continuous placement features into categorical state bins.
 
         Accepts either entity objects (VM, Host, DataCenter) or explicit numeric values.
 
-        Features:
-        1. Incoming VM CPU requirement ('SMALL', 'MEDIUM', 'LARGE')
-        2. Incoming VM RAM requirement ('SMALL', 'MEDIUM', 'LARGE')
-        3. Candidate host CPU utilization ('LOW', 'MEDIUM', 'HIGH')
-        4. Candidate host RAM utilization ('LOW', 'MEDIUM', 'HIGH')
-        5. Candidate host simulated temperature ('COOL', 'NORMAL', 'HOT')
-        6. Overall datacenter thermal condition ('COOL', 'NORMAL', 'WARM', 'CRITICAL')
+        In Experiment B1 mode (default on feature-bitbrains-cpu):
+            State representation:
+            S_B1 = (VM_CPU, HOST_CPU, HOST_TEMP, DATACENTER_THERMAL_STATE)
+            - VM_CPU: Discretized incoming VM CPU utilization percentage from Bitbrains CPU usage [%].
+            - HOST_CPU: Candidate physical host CPU utilization ratio.
+            - HOST_TEMP: Candidate physical host simulated temperature.
+            - DATACENTER_THERMAL_STATE: Overall data center thermal safety condition.
+            RAM, disk, and network parameters are strictly excluded from state and reward.
+
+        In legacy mode:
+            6-tuple: (VM_CPU, VM_RAM, HOST_CPU, HOST_RAM, HOST_TEMP, DATACENTER_THERMAL_STATE).
 
         Returns:
-            6-tuple of strings representing the discrete placement state.
+            4-tuple (in B1 mode) or 6-tuple (in legacy mode) of discrete string tokens.
         """
         cfg = self.state_config
 
+        # Determine effective state mode
+        if state_mode is not None:
+            active_mode = state_mode.upper()
+        elif vm_ram is not None or host_ram is not None:
+            active_mode = "STANDARD"
+        else:
+            active_mode = self.state_mode.upper()
+
         # 1. Extract VM CPU requirement
-        if vm_cpu is None:
-            if isinstance(vm, VM):
-                vm_cpu = float(vm.cpu_demand)
+        if active_mode == "B1":
+            if vm_cpu is not None:
+                vm_cpu_val = float(vm_cpu)
+            elif isinstance(vm, VM):
+                if vm.current_cpu_utilization is not None:
+                    vm_cpu_val = float(vm.current_cpu_utilization)
+                elif getattr(vm, "cpu_trace", None):
+                    vm_cpu_val = float(vm.cpu_trace[0])
+                else:
+                    vm_cpu_val = float(vm.cpu_demand)
             elif isinstance(vm, (int, float)):
-                vm_cpu = float(vm)
+                vm_cpu_val = float(vm)
             else:
-                vm_cpu = 0.0
+                vm_cpu_val = 0.0
 
-        if vm_cpu <= cfg.vm_cpu_thresholds[0]:
-            bin_vm_cpu = "SMALL"
-        elif vm_cpu <= cfg.vm_cpu_thresholds[1]:
-            bin_vm_cpu = "MEDIUM"
+            if vm_cpu_val <= cfg.vm_cpu_util_thresholds[0]:
+                bin_vm_cpu = "LOW"
+            elif vm_cpu_val <= cfg.vm_cpu_util_thresholds[1]:
+                bin_vm_cpu = "MEDIUM"
+            else:
+                bin_vm_cpu = "HIGH"
         else:
-            bin_vm_cpu = "LARGE"
-
-        # 2. Extract VM RAM requirement
-        if vm_ram is None:
-            if isinstance(vm, VM):
-                vm_ram = float(vm.ram_demand)
+            if vm_cpu is not None:
+                vm_cpu_val = float(vm_cpu)
+            elif isinstance(vm, VM):
+                vm_cpu_val = float(vm.cpu_demand)
             elif isinstance(vm, (int, float)):
-                vm_ram = float(vm)
+                vm_cpu_val = float(vm)
             else:
-                vm_ram = 0.0
+                vm_cpu_val = 0.0
 
-        if vm_ram <= cfg.vm_ram_thresholds[0]:
-            bin_vm_ram = "SMALL"
-        elif vm_ram <= cfg.vm_ram_thresholds[1]:
-            bin_vm_ram = "MEDIUM"
-        else:
-            bin_vm_ram = "LARGE"
+            if vm_cpu_val <= cfg.vm_cpu_thresholds[0]:
+                bin_vm_cpu = "SMALL"
+            elif vm_cpu_val <= cfg.vm_cpu_thresholds[1]:
+                bin_vm_cpu = "MEDIUM"
+            else:
+                bin_vm_cpu = "LARGE"
 
-        # 3. Extract Candidate Host CPU utilization
+        # 2. Extract Candidate Host CPU utilization
         if host_cpu is None:
             if isinstance(host, Host):
                 host_cpu = float(host.cpu_utilization)
@@ -214,23 +238,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         else:
             bin_host_cpu = "HIGH"
 
-        # 4. Extract Candidate Host RAM utilization
-        if host_ram is None:
-            if isinstance(host, Host):
-                host_ram = float(host.ram_utilization)
-            elif isinstance(host, (int, float)):
-                host_ram = float(host)
-            else:
-                host_ram = 0.0
-
-        if host_ram < cfg.host_ram_thresholds[0]:
-            bin_host_ram = "LOW"
-        elif host_ram < cfg.host_ram_thresholds[1]:
-            bin_host_ram = "MEDIUM"
-        else:
-            bin_host_ram = "HIGH"
-
-        # 5. Extract Candidate Host Temperature (4 bins: COOL, NORMAL, WARM, HOT)
+        # 3. Extract Candidate Host Temperature (4 bins: COOL, NORMAL, WARM, HOT)
         if host_temp is None:
             if isinstance(host, Host):
                 host_temp = float(host.simulated_temperature_c)
@@ -248,7 +256,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         else:
             bin_host_temp = "HOT"
 
-        # 6. Extract Overall Datacenter Thermal Condition (3 bins: COOL, MODERATE, CRITICAL)
+        # 4. Extract Overall Datacenter Thermal Condition (3 bins: COOL, MODERATE, CRITICAL)
         if dc_thermal is not None:
             bin_dc_thermal = str(dc_thermal)
         elif datacenter is not None and datacenter.hosts:
@@ -264,7 +272,72 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         else:
             bin_dc_thermal = "COOL"
 
+        # If B1 mode: return S_B1 = (VM_CPU, HOST_CPU, HOST_TEMP, DATACENTER_THERMAL_STATE)
+        if active_mode == "B1":
+            return (bin_vm_cpu, bin_host_cpu, bin_host_temp, bin_dc_thermal)
+
+        # Legacy 6-tuple mode includes VM RAM and Host RAM
+        if vm_ram is None:
+            if isinstance(vm, VM):
+                vm_ram = float(vm.ram_demand)
+            elif isinstance(vm, (int, float)):
+                vm_ram = float(vm)
+            else:
+                vm_ram = 0.0
+
+        if vm_ram <= cfg.vm_ram_thresholds[0]:
+            bin_vm_ram = "SMALL"
+        elif vm_ram <= cfg.vm_ram_thresholds[1]:
+            bin_vm_ram = "MEDIUM"
+        else:
+            bin_vm_ram = "LARGE"
+
+        if host_ram is None:
+            if isinstance(host, Host):
+                host_ram = float(host.ram_utilization)
+            elif isinstance(host, (int, float)):
+                host_ram = float(host)
+            else:
+                host_ram = 0.0
+
+        if host_ram < cfg.host_ram_thresholds[0]:
+            bin_host_ram = "LOW"
+        elif host_ram < cfg.host_ram_thresholds[1]:
+            bin_host_ram = "MEDIUM"
+        else:
+            bin_host_ram = "HIGH"
+
         return (bin_vm_cpu, bin_vm_ram, bin_host_cpu, bin_host_ram, bin_host_temp, bin_dc_thermal)
+
+    def discretize_state_b1(
+        self,
+        vm: Optional[Union[VM, int, float]] = None,
+        host: Optional[Union[Host, float]] = None,
+        datacenter: Optional[DataCenter] = None,
+        *,
+        vm_cpu: Optional[float] = None,
+        host_cpu: Optional[float] = None,
+        host_temp: Optional[float] = None,
+        dc_thermal: Optional[str] = None,
+    ) -> Tuple[str, str, str, str]:
+        """Discretizes placement state for Experiment B1 (CPU-only thermal-aware).
+
+        State representation:
+            S_B1 = (VM_CPU, HOST_CPU, HOST_TEMP, DATACENTER_THERMAL_STATE)
+
+        Returns:
+            4-tuple: (VM_CPU, HOST_CPU, HOST_TEMP, DATACENTER_THERMAL_STATE).
+        """
+        return self.discretize_state(
+            vm=vm,
+            host=host,
+            datacenter=datacenter,
+            vm_cpu=vm_cpu,
+            host_cpu=host_cpu,
+            host_temp=host_temp,
+            dc_thermal=dc_thermal,
+            state_mode="B1",
+        )
 
     # -------------------------------------------------------------------------
     # 2. Eligible-Host Identification
@@ -482,7 +555,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
     # -------------------------------------------------------------------------
 
     # @flows QLearningPlacementAgent -> FileSystem via JSON -- "Saves trained Q-table and metadata to disk"
-    # @handles model_weights on QLearningPlacementAgent -- "Serializes discrete state-action Q-table safely"
+    # @handles internal on QLearningPlacementAgent -- "Serializes discrete state-action Q-table safely"
     def save(
         self,
         file_path: Union[str, Path],
@@ -510,6 +583,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         cfg = self.state_config
         state_cfg_dict = {
             "vm_cpu_thresholds": list(cfg.vm_cpu_thresholds),
+            "vm_cpu_util_thresholds": list(cfg.vm_cpu_util_thresholds),
             "vm_ram_thresholds": list(cfg.vm_ram_thresholds),
             "host_cpu_thresholds": list(cfg.host_cpu_thresholds),
             "host_ram_thresholds": list(cfg.host_ram_thresholds),
@@ -530,6 +604,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
         payload = {
             "version": "1.0",
             "algorithm": "Q-Learning",
+            "state_mode": self.state_mode,
             "hyperparameters": hyperparameters,
             "state_config": state_cfg_dict,
             "training_metadata": metadata or {},
@@ -541,7 +616,8 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             json.dump(payload, f, indent=2)
 
     # @flows FileSystem -> QLearningPlacementAgent via JSON -- "Loads trained Q-table and validates schema"
-    # @handles model_weights on QLearningPlacementAgent -- "Deserializes discrete state-action Q-table safely"
+    # @control State Configuration Schema (#qtable-schema) -- "Validates state configuration thresholds before deserialization"
+    # @handles internal on QLearningPlacementAgent -- "Deserializes discrete state-action Q-table safely"
     # @validates #qtable-schema for QLearningPlacementAgent -- "Validates state configuration thresholds before deserialization"
     def load(
         self,
@@ -618,6 +694,9 @@ class QLearningPlacementAgent(BasePlacementStrategy):
                 if self.seed is not None:
                     self.rng = random.Random(self.seed)
 
+        if "state_mode" in payload:
+            self.state_mode = payload["state_mode"]
+
         self.q_table.clear()
         for entry in payload["entries"]:
             state = tuple(entry["state"])
@@ -652,6 +731,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             sc = payload["state_config"]
             state_cfg = StateDiscretizerConfig(
                 vm_cpu_thresholds=tuple(sc.get("vm_cpu_thresholds", (2.0, 4.0))),
+                vm_cpu_util_thresholds=tuple(sc.get("vm_cpu_util_thresholds", (33.33, 66.67))),
                 vm_ram_thresholds=tuple(sc.get("vm_ram_thresholds", (4.0, 16.0))),
                 host_cpu_thresholds=tuple(sc.get("host_cpu_thresholds", (0.40, 0.70))),
                 host_ram_thresholds=tuple(sc.get("host_ram_thresholds", (0.40, 0.70))),
@@ -669,6 +749,7 @@ class QLearningPlacementAgent(BasePlacementStrategy):
             epsilon_decay=hp.get("epsilon_decay", 0.995),
             seed=hp.get("seed", None),
             state_config=state_cfg,
+            state_mode=payload.get("state_mode", "B1"),
         )
 
         agent.q_table.clear()

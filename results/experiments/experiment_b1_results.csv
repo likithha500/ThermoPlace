@@ -1,0 +1,11 @@
+Metric,First Fit,Q-Learning (B1),Unit / Notes
+Accepted VMs,32,36,count (higher is better)
+Rejected VMs,18,14,count (lower is better)
+Allocated CPU Utilization,95.13%,94.76%,mean reserved CPU
+Actual CPU Utilization,0.90%,0.92%,mean trace CPU usage [%]
+RAM Utilization (Reporting Only),41.71%,43.97%,mean provisioned RAM (not in state)
+Cumulative Hotspot Events,0,0,host-steps >= 75.0°C
+Steps With Hotspots,0,0,steps with >= 1 hotspot
+Maximum Host Temperature (T_max),50.29 °C,50.18 °C,peak temperature across datacenter
+Thermal Imbalance (sigma_T),0.70 °C,0.62 °C,mean std(T) across hosts
+Accumulated Reward,N/A (Heuristic),198.10,thermal-aware RL reward

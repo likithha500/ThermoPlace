@@ -23,7 +23,7 @@ from src.qlearning.trainer import QLearningTrainer, TrainingConfig
 
 
 # @flows User -> CLI via parse_args -- "CLI configuration input parsing"
-# @handles configuration on CLI -- "Validates hyperparameter inputs and dataset paths"
+# @handles internal on CLI -- "Validates hyperparameter inputs and dataset paths"
 def parse_args(args=None):
     """Parses command-line arguments for Q-Learning training."""
     parser = argparse.ArgumentParser(

@@ -71,10 +71,40 @@ def _parse_bitbrains_file(file_path: Path) -> VMTrace:
             f"All CPU usage values in '{file_path.name}' are invalid or out of range [0, 100]."
         )
 
+    # Safely extract optional columns without mutating original series
+    def _extract_series(col_name: str) -> Optional[List[float]]:
+        if col_name in df.columns:
+            s = pd.to_numeric(df.loc[cleaned.index, col_name], errors="coerce").fillna(0.0)
+            return [float(x) for x in s]
+        return None
+
+    cpu_cores = None
+    if "CPU cores" in df.columns and not df["CPU cores"].empty:
+        try:
+            cpu_cores = int(float(df["CPU cores"].iloc[0]))
+        except Exception:
+            pass
+
+    cpu_capacity_mhz = None
+    if "CPU capacity provisioned [MHZ]" in df.columns and not df["CPU capacity provisioned [MHZ]"].empty:
+        try:
+            cpu_capacity_mhz = float(df["CPU capacity provisioned [MHZ]"].iloc[0])
+        except Exception:
+            pass
+
     return VMTrace(
         vm_id=file_path.stem,
         cpu_samples=[float(v) for v in cleaned],
         source_file=str(file_path),
+        cpu_cores=cpu_cores,
+        cpu_capacity_provisioned_mhz=cpu_capacity_mhz,
+        cpu_usage_mhz=_extract_series("CPU usage [MHZ]"),
+        memory_provisioned_kb=_extract_series("Memory capacity provisioned [KB]"),
+        memory_usage_kb=_extract_series("Memory usage [KB]"),
+        disk_read_kbps=_extract_series("Disk read throughput [KB/s]"),
+        disk_write_kbps=_extract_series("Disk write throughput [KB/s]"),
+        network_rx_kbps=_extract_series("Network received throughput [KB/s]"),
+        network_tx_kbps=_extract_series("Network transmitted throughput [KB/s]"),
     )
 
 

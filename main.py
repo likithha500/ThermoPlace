@@ -43,7 +43,7 @@ from src.workload import TraceWorkloadGenerator
 
 
 # @flows User -> CLI via parse_args -- "CLI configuration input parsing"
-# @handles configuration on CLI -- "Validates hyperparameter inputs and dataset paths"
+# @handles internal on CLI -- "Validates hyperparameter inputs and dataset paths"
 def parse_args(args=None):
     parser = argparse.ArgumentParser(
         description="ThermoPlace: Thermal-Aware VM Scheduling Simulator"
@@ -120,6 +120,13 @@ def parse_args(args=None):
         default="first_fit",
         choices=["first_fit", "q_learning"],
         help="Placement strategy to use: 'first_fit' (default) or 'q_learning'",
+    )
+    parser.add_argument(
+        "--state-mode",
+        type=str,
+        default="B1",
+        choices=["B1", "standard"],
+        help="Q-Learning state representation mode: 'B1' (CPU-only 4-tuple, default) or 'standard' (6-tuple)",
     )
     parser.add_argument(
         "--eval-mode",
@@ -243,6 +250,7 @@ def _build_strategy(parsed_args):
             min_epsilon=parsed_args.min_epsilon,
             epsilon_decay=parsed_args.epsilon_decay,
             seed=parsed_args.seed,
+            state_mode=parsed_args.state_mode,
         )
 
     # In evaluation mode: force epsilon = 0.0 and freeze updates
@@ -322,6 +330,7 @@ def main(args=None):
             arrival_rate=parsed_args.arrival_rate,
             ambient_temp=parsed_args.ambient_temp,
             hotspot_threshold=parsed_args.hotspot_threshold,
+            state_mode=parsed_args.state_mode,
             output_dir=parsed_args.output_dir,
             model_path=parsed_args.model_path,
             overwrite=parsed_args.overwrite,

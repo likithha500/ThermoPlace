@@ -82,6 +82,8 @@ class TrainingConfig:
     ambient_temp: float = 25.0
     hotspot_threshold: float = 75.0
 
+    state_mode: str = "B1"
+
     output_dir: str = "results/training"
     csv_filename: str = "training_history.csv"
     plots_dir: str = "results/training/plots"
@@ -180,6 +182,7 @@ class QLearningTrainer:
                 min_epsilon=cfg.min_epsilon,
                 epsilon_decay=cfg.epsilon_decay,
                 seed=cfg.seed,
+                state_mode=cfg.state_mode,
             )
 
         # 4. Learning Placement Strategy
@@ -406,7 +409,7 @@ class QLearningTrainer:
     # -------------------------------------------------------------------------
 
     # @flows QLearningTrainer -> FileSystem via CSV -- "Writes episode-level training history to CSV"
-    # @handles training_history on QLearningTrainer -- "Formats episode performance statistics into structured CSV"
+    # @handles internal on QLearningTrainer -- "Formats episode performance statistics into structured CSV"
     def save_history_csv(
         self,
         output_path: Optional[Union[str, Path]] = None,
@@ -466,7 +469,7 @@ class QLearningTrainer:
         return target_path
 
     # @flows QLearningTrainer -> FileSystem via JSON -- "Saves trained Q-table with metadata"
-    # @handles model_weights on QLearningTrainer -- "Serializes trained agent state and training hyperparameters"
+    # @handles internal on QLearningTrainer -- "Serializes trained agent state and training hyperparameters"
     def save_model(
         self,
         model_path: Optional[Union[str, Path]] = None,
